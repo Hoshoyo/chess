@@ -24,4 +24,4 @@ typedef struct {
 } Game;
 
 void game_new(Game* game);
-int  game_move(Game* game, s32 from_x, s32 from_y, s32 to_x, s32 to_y);
+int  game_move(Game* game, s32 from_x, s32 from_y, s32 to_x, s32 to_y, Chess_Piece promotion_choice);

@@ -18,6 +18,9 @@ typedef struct {
 
     s32 real_x;
     s32 real_y;
+
+    s32 scroll_up_count;
+    s32 scroll_down_count;
 } AppInput;
 
 typedef struct {
@@ -39,6 +42,8 @@ typedef struct {
     u32 black_rook;
     u32 black_knight;
     u32 black_pawn;
+
+    bool inverted_board;
 } AppInterface;
 
 u32
@@ -71,6 +76,8 @@ interface_init()
     result->black_knight = load_image("res/BN.png");
     result->black_pawn   = load_image("res/BP.png");
 
+    result->inverted_board = false;
+
     return result;
 }
 
@@ -80,50 +87,6 @@ interface_update_window(Chess_Interface interf, s32 width, s32 height)
     AppInterface* chess = (AppInterface*)interf;
     chess->window_width = width;
     chess->window_height = height;
-}
-
-void 
-interface_input(Chess_Interface interf, Game* game)
-{
-    AppInterface* chess = (AppInterface*)interf;
-	AppInput* input = &chess->input;
-
-	s32 xx = -1, yy = -1;
-	Hinp_Event ev = {0};
-	while (hinp_event_next(&ev)) {
-		if(ev.type == HINP_EVENT_MOUSE_CLICK) {
-			xx = floorf(((r32)ev.mouse.x / (r32)chess->window_width) * 8.0f);
-			yy = floorf(8.0f - (((r32)ev.mouse.y / (r32)chess->window_height) * 8.0f));
-
-			if(ev.mouse.action == 1) {
-				input->pressed = true;
-				input->start_x = xx;
-				input->start_y = yy;
-			} else {
-				bool was_selected = (input->selected);
-				input->selected = false;
-				if(input->pressed && xx == input->start_x && yy == input->start_y) {
-					input->selected = !was_selected;
-                    if(was_selected)
-                        game_move(game, input->selected_x, input->selected_y, xx, yy);
-					if (input->selected) {
-						input->selected_x = xx;
-						input->selected_y = yy;
-					}
-				} else {
-                    game_move(game, input->start_x, input->start_y, xx, yy);
-                }
-				input->pressed = false;
-			}
-		} else if(ev.type == HINP_EVENT_MOUSE_MOVE) {
-			xx = floorf(((r32)ev.mouse.x / (r32)chess->window_width) * 8.0f);
-			yy = floorf(8.0f - (((r32)ev.mouse.y / (r32)chess->window_height) * 8.0f));
-			input->at_x = xx;
-			input->at_y = yy;
-            input->real_x = ev.mouse.x;
-            input->real_y = chess->window_height - ev.mouse.y;
-		}
-	}
 }
 
 bool
@@ -149,6 +112,103 @@ texture_from_piece(AppInterface* chess, Chess_Piece piece, u32* texture)
     return result;
 }
 
+Chess_Piece
+piece_from_scroll(AppInput* input, bool white)
+{
+    Chess_Piece result = CHESS_WHITE_QUEEN;
+    s32 value = (input->scroll_up_count + input->scroll_down_count) % 4;
+    if(white) {
+        switch(value) {
+            case 0: result = CHESS_WHITE_QUEEN; break;
+            case 1: result = CHESS_WHITE_ROOK; break;
+            case 2: result = CHESS_WHITE_KNIGHT; break;
+            case 3: result = CHESS_WHITE_BISHOP; break;
+            default: result = CHESS_WHITE_QUEEN; break;
+        }
+    } else {
+        switch(value) {
+            case 0: result = CHESS_BLACK_QUEEN; break;
+            case 1: result = CHESS_BLACK_ROOK; break;
+            case 2: result = CHESS_BLACK_KNIGHT; break;
+            case 3: result = CHESS_BLACK_BISHOP; break;
+            default: result = CHESS_BLACK_QUEEN; break;
+        }
+    }
+    return result;
+}
+
+static s32
+get_x(s32 x, bool inverted)
+{
+    return (inverted) ? (8 - x - 1) : x;
+}
+
+static s32
+get_y(s32 y, bool inverted)
+{
+    return (inverted) ? (8 - y - 1) : y;
+}
+
+void 
+interface_input(Chess_Interface interf, Game* game)
+{
+    AppInterface* chess = (AppInterface*)interf;
+	AppInput* input = &chess->input;
+
+	s32 xx = -1, yy = -1;
+	Hinp_Event ev = {0};
+	while (hinp_event_next(&ev)) {
+		if(ev.type == HINP_EVENT_MOUSE_CLICK) {
+			xx = floorf(((r32)ev.mouse.x / (r32)chess->window_width) * 8.0f);
+			yy = floorf(8.0f - (((r32)ev.mouse.y / (r32)chess->window_height) * 8.0f));
+
+			if(ev.mouse.action == 1) {
+				input->pressed = true;
+				input->start_x = xx;
+				input->start_y = yy;
+			} else {
+				bool was_selected = (input->selected);
+				input->selected = false;
+				if(input->pressed && xx == input->start_x && yy == input->start_y) {
+					input->selected = !was_selected;
+                    if(was_selected)
+                        game_move(game, get_x(input->selected_x, chess->inverted_board), get_y(input->selected_y, chess->inverted_board), get_x(xx, chess->inverted_board), get_y(yy, chess->inverted_board), piece_from_scroll(input, get_y(yy, chess->inverted_board) == 7));
+					if (input->selected) {
+						input->selected_x = xx;
+						input->selected_y = yy;
+					}
+				} else {
+                    game_move(game, get_x(input->start_x, chess->inverted_board), get_y(input->start_y, chess->inverted_board), get_x(xx, chess->inverted_board), get_y(yy, chess->inverted_board), piece_from_scroll(input, get_y(yy, chess->inverted_board) == 7));
+                }
+				input->pressed = false;
+                input->scroll_up_count = 0;
+                input->scroll_down_count = 0;
+			}
+		} else if(ev.type == HINP_EVENT_MOUSE_MOVE) {
+			xx = floorf(((r32)ev.mouse.x / (r32)chess->window_width) * 8.0f);
+			yy = floorf(8.0f - (((r32)ev.mouse.y / (r32)chess->window_height) * 8.0f));
+			input->at_x = xx;
+			input->at_y = yy;
+            input->real_x = ev.mouse.x;
+            input->real_y = chess->window_height - ev.mouse.y;
+		} else if(ev.type == HINP_EVENT_MOUSE_SCROLL) {
+            if(ev.mouse.scroll_delta_y > 0) {
+                input->scroll_up_count++;
+            } else if (ev.mouse.scroll_delta_y < 0) {
+                input->scroll_down_count++;
+            }
+        } else if(ev.type == HINP_EVENT_KEYBOARD) {
+            if(ev.keyboard.action == 1) {
+                switch (ev.keyboard.key) {
+                    case 'R': game_new(game); break;
+                    case 'T': chess->inverted_board = !chess->inverted_board; break;
+                    default: break;
+                }
+            }
+        }
+	}
+}
+
 void 
 interface_render(Chess_Interface interf, Hobatch_Context* ctx, Game* game)
 {
@@ -161,7 +221,13 @@ interface_render(Chess_Interface interf, Hobatch_Context* ctx, Game* game)
     Chess_Piece piece_selected = CHESS_NONE;
 
     if(input->pressed) {
-        piece_selected = game->board[input->start_y][input->start_x];
+        piece_selected = game->board[get_y(input->start_y, chess->inverted_board)][get_x(input->start_x, chess->inverted_board)];
+        if(piece_selected == CHESS_WHITE_PAWN && get_y(input->start_y, chess->inverted_board) == 6) {
+            piece_selected = piece_from_scroll(input, true);
+        }
+        else if (piece_selected == CHESS_BLACK_PAWN && get_y(input->start_y, chess->inverted_board) == 1) {
+            piece_selected = piece_from_scroll(input, false);
+        }
     }
 
     for(int y = 0; y < 8; ++y)
@@ -169,10 +235,10 @@ interface_render(Chess_Interface interf, Hobatch_Context* ctx, Game* game)
         for(int x = 0; x < 8; ++x)
         {
 			vec4 color;
-			if(((x + y) % 2) == 0)
-				color = black_bg;
-			else
-				color = white_bg;
+            if(chess->inverted_board)
+                color = (((x + y) % 2) != 0) ? black_bg : white_bg;
+            else
+                color = (((x + y) % 2) == 0) ? black_bg : white_bg;
 
 			if(input->pressed && input->start_x == x && input->start_y == y) {
 				color = color_red;
@@ -189,7 +255,7 @@ interface_render(Chess_Interface interf, Hobatch_Context* ctx, Game* game)
             if(!(piece_selected != CHESS_NONE && input->start_x == x && input->start_y == y))
             {
                 u32 texture = 0;
-                bool render_piece = texture_from_piece(chess, game->board[y][x], &texture);
+                bool render_piece = texture_from_piece(chess, game->board[get_y(y, chess->inverted_board)][get_x(x, chess->inverted_board)], &texture);
                 if (render_piece)
                     batch_render_quad_textured(ctx, (vec3){w * x, h * y, 0}, w, h, texture);
             }

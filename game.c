@@ -34,7 +34,7 @@ game_new(Game* game)
 }
 
 int
-game_move(Game* game, s32 from_x, s32 from_y, s32 to_x, s32 to_y)
+game_move(Game* game, s32 from_x, s32 from_y, s32 to_x, s32 to_y, Chess_Piece promotion_choice)
 {
     game->board[to_y][to_x] = game->board[from_y][from_x];
     game->board[from_y][from_x] = CHESS_NONE;
