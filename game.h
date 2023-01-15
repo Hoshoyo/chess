@@ -47,7 +47,6 @@ typedef struct {
 typedef struct {
     Chess_Piece board[8][8];
     Chess_Piece sim_board[8][8];
-    Chess_Piece last_board[8][8];
 
     Player winner;
     bool white_turn;
@@ -68,3 +67,4 @@ typedef struct {
 
 void game_new(Game* game);
 int  game_move(Game* game, s32 from_x, s32 from_y, s32 to_x, s32 to_y, Chess_Piece promotion_choice, bool simulate);
+void game_undo(Game* game);

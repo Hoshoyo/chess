@@ -1146,3 +1146,14 @@ check_repetition(Game* game)
 
     return sum >= 2;
 }
+
+void
+game_undo(Game* game)
+{
+    Game_History* history = ((Game_History*)game->history);
+    if (history && array_length(history->game) > 1) {
+        *game = history->game[array_length(history->game) - 2];
+        array_length(history->game)--;
+        history->repetition_index_check = 0;
+    }
+}

@@ -182,15 +182,13 @@ interface_input(Chess_Interface interf, Game* game)
 				if(input->pressed && xx == input->start_x && yy == input->start_y) {
 					input->selected = !was_selected;
                     if (was_selected)
-                        if (game_move(game, get_x(input->selected_x, chess->inverted_board), get_y(input->selected_y, chess->inverted_board), get_x(xx, chess->inverted_board), get_y(yy, chess->inverted_board), piece_from_scroll(input, get_y(yy, chess->inverted_board) == 7), false))
-                            chess->last_turn = last_turn;
+                        game_move(game, get_x(input->selected_x, chess->inverted_board), get_y(input->selected_y, chess->inverted_board), get_x(xx, chess->inverted_board), get_y(yy, chess->inverted_board), piece_from_scroll(input, get_y(yy, chess->inverted_board) == 7), false);
 					if (input->selected) {
 						input->selected_x = xx;
 						input->selected_y = yy;
 					}
 				} else {
-                    if (game_move(game, get_x(input->start_x, chess->inverted_board), get_y(input->start_y, chess->inverted_board), get_x(xx, chess->inverted_board), get_y(yy, chess->inverted_board), piece_from_scroll(input, get_y(yy, chess->inverted_board) == 7), false))
-                        chess->last_turn = last_turn;
+                    game_move(game, get_x(input->start_x, chess->inverted_board), get_y(input->start_y, chess->inverted_board), get_x(xx, chess->inverted_board), get_y(yy, chess->inverted_board), piece_from_scroll(input, get_y(yy, chess->inverted_board) == 7), false);
                 }
 				input->pressed = false;
                 input->scroll_up_count = 0;
@@ -214,7 +212,7 @@ interface_input(Chess_Interface interf, Game* game)
                 switch (ev.keyboard.key) {
                     case 'R': game_new(game); break;
                     case 'T': chess->inverted_board = !chess->inverted_board; break;
-                    case VK_LEFT: *game = chess->last_turn;
+                    case VK_LEFT: game_undo(game);
                     default: break;
                 }
             }
