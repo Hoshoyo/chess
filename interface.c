@@ -2,6 +2,7 @@
 #include "input.h"
 #include "renderer.h"
 #include <stb_image.h>
+#include <float.h>
 
 const vec4 black_bg = { 118.0f / 255.0f, 150.0f / 255.0f , 86.0f / 255.0f, 1.0f };
 const vec4 white_bg = { 238.0f / 255.0f, 238.0f / 255.0f , 210.0f / 255.0f, 1.0f };
@@ -43,7 +44,11 @@ typedef struct {
     u32 black_knight;
     u32 black_pawn;
 
+    Font* font;
+
     bool inverted_board;
+
+    Game last_turn;
 } AppInterface;
 
 u32
@@ -77,6 +82,8 @@ interface_init()
     result->black_pawn   = load_image("res/BP.png");
 
     result->inverted_board = false;
+
+    result->font = renderer_font_new(64, "C:/Windows/Fonts/arial.ttf");
 
     return result;
 }
@@ -155,6 +162,8 @@ interface_input(Chess_Interface interf, Game* game)
     AppInterface* chess = (AppInterface*)interf;
 	AppInput* input = &chess->input;
 
+    Game last_turn = *game;
+
 	s32 xx = -1, yy = -1;
 	Hinp_Event ev = {0};
 	while (hinp_event_next(&ev)) {
@@ -171,14 +180,16 @@ interface_input(Chess_Interface interf, Game* game)
 				input->selected = false;
 				if(input->pressed && xx == input->start_x && yy == input->start_y) {
 					input->selected = !was_selected;
-                    if(was_selected)
-                        game_move(game, get_x(input->selected_x, chess->inverted_board), get_y(input->selected_y, chess->inverted_board), get_x(xx, chess->inverted_board), get_y(yy, chess->inverted_board), piece_from_scroll(input, get_y(yy, chess->inverted_board) == 7), false);
+                    if (was_selected)
+                        if (game_move(game, get_x(input->selected_x, chess->inverted_board), get_y(input->selected_y, chess->inverted_board), get_x(xx, chess->inverted_board), get_y(yy, chess->inverted_board), piece_from_scroll(input, get_y(yy, chess->inverted_board) == 7), false))
+                            chess->last_turn = last_turn;
 					if (input->selected) {
 						input->selected_x = xx;
 						input->selected_y = yy;
 					}
 				} else {
-                    game_move(game, get_x(input->start_x, chess->inverted_board), get_y(input->start_y, chess->inverted_board), get_x(xx, chess->inverted_board), get_y(yy, chess->inverted_board), piece_from_scroll(input, get_y(yy, chess->inverted_board) == 7), false);
+                    if (game_move(game, get_x(input->start_x, chess->inverted_board), get_y(input->start_y, chess->inverted_board), get_x(xx, chess->inverted_board), get_y(yy, chess->inverted_board), piece_from_scroll(input, get_y(yy, chess->inverted_board) == 7), false))
+                        chess->last_turn = last_turn;
                 }
 				input->pressed = false;
                 input->scroll_up_count = 0;
@@ -202,11 +213,26 @@ interface_input(Chess_Interface interf, Game* game)
                 switch (ev.keyboard.key) {
                     case 'R': game_new(game); break;
                     case 'T': chess->inverted_board = !chess->inverted_board; break;
+                    case VK_LEFT: *game = chess->last_turn;
                     default: break;
                 }
             }
         }
 	}
+}
+
+static const char*
+winner_text(Player p) 
+{
+    switch (p) {
+        case PLAYER_WHITE: return "White won by checkmate!"; break;
+        case PLAYER_BLACK: return "Black won by checkmate!"; break;
+        case PLAYER_DRAW_STALEMATE: return "Draw by stalemate."; break;
+        case PLAYER_DRAW_50_MOVE: return "Draw by 50 move."; break;
+        case PLAYER_DRAW_INSUFFICIENT_MATERIAL: return "Draw by insufficient material."; break;
+        case PLAYER_DRAW_THREE_FOLD_REPETITION: return "Draw by repetition."; break;
+        default: return "";
+    }
 }
 
 void 
@@ -265,5 +291,13 @@ interface_render(Chess_Interface interf, Hobatch_Context* ctx, Game* game)
         u32 texture = 0;
         if(texture_from_piece(chess, piece_selected, &texture))
             batch_render_quad_textured(ctx, (vec3){input->real_x - w / 2, input->real_y - h / 2, 0}, w, h, texture);
+    }
+    
+
+    if (game->winner != PLAYER_NONE) {
+        const char* text = winner_text(game->winner);
+        vec4 text_pos = batch_pre_render_text(ctx, &chess->font->data, text, strlen(text), 0, (vec2) { 0, 0 }, 0, 0);
+        batch_render_quad_color_solid(ctx, (vec3) { chess->window_width / 2 - text_pos.z / 2.0f - 10.0f, chess->window_height / 2 - text_pos.w / 2.0f - 5.0f, 0 }, text_pos.z + 20.0f, text_pos.w + 10.0f, (vec4) { 0.5f, 0.5f, 0.5f, 1.0f });
+        batch_render_text(ctx, &chess->font->data, text, strlen(text), 0, (vec2) { chess->window_width / 2.0f - text_pos.z / 2.0f, chess->window_height / 2 - text_pos.w / 2.0f }, (vec4) { 0, 0, FLT_MAX, FLT_MAX }, (vec4) { 1, 1, 1, 1 }, 0, 0);
     }
 }

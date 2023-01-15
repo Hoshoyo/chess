@@ -14,7 +14,8 @@ void
 game_new(Game* game)
 {
     memset(game->board, 0, sizeof(game->board));
-#if 0
+    game->move_draw_count = 0;
+
     for(s32 y = 0; y < 8; ++y)
         for(s32 x = 0; x < 8; ++x)
         {
@@ -50,12 +51,6 @@ game_new(Game* game)
     game->white_short_castle_valid = true;
     game->black_long_castle_valid = true;
     game->black_short_castle_valid = true;
-#else
-    game->white_turn = true;
-    game->board[0][0] = CHESS_WHITE_QUEEN;
-    game->board[4][3] = CHESS_WHITE_KING;
-    game->board[5][6] = CHESS_BLACK_KING;
-#endif
 
     game->winner = PLAYER_NONE;
 }
@@ -301,18 +296,6 @@ black_in_check(Game* game, bool sim)
 }
 
 static bool
-white_in_checkmate(Game* game)
-{
-    return false;
-}
-
-static bool
-black_in_checkmate(Game* game)
-{
-    return false;
-}
-
-static bool
 white_en_passant(Game* game, s32 from_x, s32 from_y, s32 to_x, s32 to_y)
 {
     Chess_Piece piece = game->board[from_y][from_x];
@@ -551,6 +534,9 @@ game_move(Game* game, s32 from_x, s32 from_y, s32 to_x, s32 to_y, Chess_Piece pr
         return false;
     }
 
+    if (game->winner != PLAYER_NONE)
+        return false;
+
     Chess_Piece new_piece = from_piece;
     if(from_piece == CHESS_WHITE_PAWN && to_y == LAST_RANK) {
         if (promotion_choice == CHESS_WHITE_QUEEN || promotion_choice == CHESS_WHITE_ROOK || promotion_choice == CHESS_WHITE_KNIGHT || promotion_choice == CHESS_WHITE_BISHOP)
@@ -588,12 +574,22 @@ game_move(Game* game, s32 from_x, s32 from_y, s32 to_x, s32 to_y, Chess_Piece pr
     if (!game->white_turn && black_in_check(game, true))
         return false;
 
-    if(!simulate) {    
+    if(!simulate) 
+    {
+        bool captured = false;
+
         // After all checks, perform the move
-        if (game->white_turn && white_en_passant(game, from_x, from_y, to_x, to_y))
+        if (game->white_turn && white_en_passant(game, from_x, from_y, to_x, to_y)){
             game->board[to_y - 1][to_x] = CHESS_NONE;
-        if (!game->white_turn && black_en_passant(game, from_x, from_y, to_x, to_y))
+            captured = true;
+        }
+        if (!game->white_turn && black_en_passant(game, from_x, from_y, to_x, to_y)) {
             game->board[to_y + 1][to_x] = CHESS_NONE;
+            captured = true;
+        }
+
+        if(game->board[to_y][to_x] != CHESS_NONE)
+            captured = true;
 
         game->board[to_y][to_x] = new_piece;
         game->board[from_y][from_x] = CHESS_NONE;
@@ -646,6 +642,11 @@ game_move(Game* game, s32 from_x, s32 from_y, s32 to_x, s32 to_y, Chess_Piece pr
                 game->black_long_castle_valid = false;
         }
 
+        if(from_piece == CHESS_WHITE_PAWN || from_piece == CHESS_BLACK_PAWN || captured)
+            game->move_draw_count = 0;
+        else
+            game->move_draw_count++;
+
         // Pass the turn
         game->white_turn = !game->white_turn;
 
@@ -657,19 +658,30 @@ game_move(Game* game, s32 from_x, s32 from_y, s32 to_x, s32 to_y, Chess_Piece pr
                 mv_count++;
             }
         }
+        array_free(moves.move);
+
         if(mv_count == 0) {
             if(!game->white_turn) {
-                if(black_in_check(game, false))
+                if(black_in_check(game, false)) {
                     printf("Checkmate, white wins by checkmate\n");
-                else
+                    game->winner = PLAYER_WHITE;
+                } else {
                     printf("Draw by stalemate\n");
+                    game->winner = PLAYER_DRAW_STALEMATE;
+                }
             }
             else {
-                if(white_in_check(game, false))
+                if(white_in_check(game, false)) {
                     printf("Checkmate, black wins by checkmate\n");
-                else
+                    game->winner = PLAYER_BLACK;
+                } else {
                     printf("Draw by stalemate\n");
+                    game->winner = PLAYER_DRAW_STALEMATE;
+                }
             }
+        } else if(game->move_draw_count == 50 * 2) {
+            printf("Draw by 50 move rule\n");
+            game->winner = PLAYER_DRAW_50_MOVE;
         }
     }
 

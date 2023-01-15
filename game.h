@@ -26,7 +26,10 @@ typedef enum {
     PLAYER_NONE = 0,
     PLAYER_WHITE,
     PLAYER_BLACK,
-    PLAYER_DRAW,
+    PLAYER_DRAW_STALEMATE,
+    PLAYER_DRAW_INSUFFICIENT_MATERIAL,
+    PLAYER_DRAW_THREE_FOLD_REPETITION,
+    PLAYER_DRAW_50_MOVE,
 } Player;
 
 typedef struct {
@@ -42,6 +45,7 @@ typedef struct {
 typedef struct {
     Chess_Piece board[8][8];
     Chess_Piece sim_board[8][8];
+    Chess_Piece last_board[8][8];
 
     Player winner;
     bool white_turn;
@@ -50,6 +54,8 @@ typedef struct {
     bool black_long_castle_valid;
     bool black_short_castle_valid;
     Chess_Move last_move;
+    s32 move_count;
+    s32 move_draw_count;
 } Game;
 
 void game_new(Game* game);
