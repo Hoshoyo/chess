@@ -13,7 +13,32 @@
 #include "network.h"
 #include "timer.h"
 
-uint64_t hash_address(SOCKADDR_IN* addr)
+#if defined(__linux__)
+typedef struct {
+  union {
+    struct {
+      unsigned char s_b1;
+      unsigned char s_b2;
+      unsigned char s_b3;
+      unsigned char s_b4;
+    } S_un_b;
+    struct {
+      unsigned short s_w1;
+      unsigned short s_w2;
+    } S_un_w;
+    unsigned int S_addr;
+  } S_un;
+} IN_ADDR, *PIN_ADDR, *LPIN_ADDR;
+
+typedef struct {
+  short          sin_family;
+  unsigned short sin_port;
+  IN_ADDR        sin_addr;
+  char           sin_zero[8];
+} SOCKADDR_IN, *PSOCKADDR_IN;
+#endif
+
+uint64_t hash_address(struct sockaddr_in* addr)
 {
 	u64 hash = 14695981039346656037ULL;
 	u64 fnv_prime = 1099511628211ULL;
@@ -28,10 +53,10 @@ void
 print_packet(UDP_Packet* packet)
 {
 	printf("Received %d bytes from %d.%d.%d.%d:%d: { %.2f, %.2f }\n", packet->length_bytes, 
-		packet->sender_info.sin_addr.S_un.S_un_b.s_b1,
-		packet->sender_info.sin_addr.S_un.S_un_b.s_b2,
-		packet->sender_info.sin_addr.S_un.S_un_b.s_b3,
-		packet->sender_info.sin_addr.S_un.S_un_b.s_b4,
+		((SOCKADDR_IN*)&packet->sender_info)->sin_addr.S_un.S_un_b.s_b1,
+		((SOCKADDR_IN*)&packet->sender_info)->sin_addr.S_un.S_un_b.s_b2,
+		((SOCKADDR_IN*)&packet->sender_info)->sin_addr.S_un.S_un_b.s_b3,
+		((SOCKADDR_IN*)&packet->sender_info)->sin_addr.S_un.S_un_b.s_b4,
 		htons(packet->sender_info.sin_port),		
 		*(float*)packet->data, *(float*)&packet->data[4]);
 }
@@ -39,12 +64,14 @@ print_packet(UDP_Packet* packet)
 void
 print_client_info(struct sockaddr_in* info)
 {
+
 	printf("%d.%d.%d.%d:%d",
-		info->sin_addr.S_un.S_un_b.s_b1,
-		info->sin_addr.S_un.S_un_b.s_b2,
-		info->sin_addr.S_un.S_un_b.s_b3,
-		info->sin_addr.S_un.S_un_b.s_b4,
+		((SOCKADDR_IN*)info)->sin_addr.S_un.S_un_b.s_b1,
+		((SOCKADDR_IN*)info)->sin_addr.S_un.S_un_b.s_b2,
+		((SOCKADDR_IN*)info)->sin_addr.S_un.S_un_b.s_b3,
+		((SOCKADDR_IN*)info)->sin_addr.S_un.S_un_b.s_b4,
 		htons(info->sin_port));
+
 }
 
 #define CLIENT_CONNECTED (1 << 0)
@@ -59,7 +86,7 @@ typedef struct {
 } Client_Data;
 
 typedef struct {
-	SOCKADDR_IN  address;
+	struct sockaddr_in address;
 	u32          flags;
 	s32          player_index;
 } Client;
@@ -125,7 +152,7 @@ push_player(Player* player)
 }
 
 Player*
-player_get(SOCKADDR_IN* client_info)
+player_get(struct sockaddr_in* client_info)
 {
 	Client client = { 0 };
 
@@ -205,7 +232,7 @@ maintain_alive_players()
 }
 
 int
-process_connect(SOCKADDR_IN* client_info)
+process_connect(struct sockaddr_in* client_info)
 {
 	LOG_INFO("Connection from ");
 	print_client_info(client_info);
@@ -355,6 +382,7 @@ typedef struct {
 } Server_Statistics;
 static Server_Statistics stats;
 
+#if defined(_WIN32) || defined(_WIN64)
 DWORD WINAPI thread_receive(void* param)
 {
 	while (true)
@@ -417,3 +445,71 @@ int main()
 
 	return 0;
 }
+#else
+
+#include <pthread.h>
+#include <unistd.h>
+
+void* thread_receive(void* param)
+{
+	while (true)
+	{
+		UDP_Packet packet = { 0 };
+		Net_Status status = network_receive_udp_packets(&connection, &packet);
+
+		switch (status)
+		{
+			case NETWORK_PACKET_NONE: break;
+			case NETWORK_FORCED_CLOSED: {
+				stats.disconnect_count++;
+				process_disconnect(&packet, true);
+			} break;
+			default: {
+				if (status > 0)
+				{
+					process_client_packet(&packet);
+					stats.bytes_received += status;
+					stats.total_bytes_received += status;
+				}
+				else
+				{
+					LOG_INFO("Network error: %d\n", status);
+				}
+			} break;
+		}		
+	}
+	return 0;
+}
+
+int main()
+{
+		if (network_init(stdout) == -1)
+		return -1;
+
+	network_create_udp_bound_socket(&connection, 9999, false);
+
+	os_time_init();
+
+	Timer timer = { 0 };
+	timer_start(&timer);
+
+	s64 bytes_received = 0;
+	hoht_new(&client_table, 256, sizeof(Client), 0.5f, malloc, free);
+	players = array_new(Player);
+
+	pthread_t thread_handle = 0;
+	pthread_create(&thread_handle, NULL, thread_receive, 0);	
+
+	while (true)
+	{
+		if (timer_has_elapsed_ms(&timer, 1000.0, true))
+		{
+			stats.bytes_received = 0;
+			maintain_alive_players();
+		}
+		usleep(100 * 1000);
+	}
+
+	return 0;
+}
+#endif

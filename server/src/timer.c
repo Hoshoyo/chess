@@ -1,10 +1,11 @@
 #include "timer.h"
 #include <time.h>
 #include <stdint.h>
+
+#if defined(_WIN32) || defined(_WIN64)
 #include <windows.h>
 
 static double perf_frequency;
-
 void
 os_time_init()
 {
@@ -20,6 +21,7 @@ os_time_us()
 	QueryPerformanceCounter(&li);
 	return ((double)(li.QuadPart) / perf_frequency) * 1000000.0;
 }
+#endif
 
 double
 timer_start(Timer* timer)

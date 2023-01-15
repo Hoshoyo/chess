@@ -1,6 +1,5 @@
 #include <time.h>
 #include <stdint.h>
-#include "../os.h"
 
 void
 os_time_init()

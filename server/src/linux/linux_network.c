@@ -1,4 +1,4 @@
-#include "../network.h"
+#include <network.h>
 #include <stdio.h>
 #include <signal.h>
 #include <string.h>
@@ -103,8 +103,8 @@ network_create_udp_bound_socket(UDP_Connection* out_conn, unsigned short port, i
 Net_Status
 network_receive_udp_packets_from_peer(UDP_Connection* udp_conn, struct sockaddr_in* peer, UDP_Packet* out_packet)
 {
-    int len = sizeof(out_packet->buffer);
-    int n = recvfrom(udp_conn->socket, (char*)out_packet->buffer, len,
+    int len = sizeof(out_packet->data);
+    int n = recvfrom(udp_conn->socket, (char*)out_packet->data, len,
         (udp_conn->flags & NETWORK_FLAG_SOCKET_ASYNC) ? MSG_DONTWAIT : 0, (struct sockaddr*)peer, &len);
 
     switch (n)
@@ -120,7 +120,7 @@ network_receive_udp_packets_from_peer(UDP_Connection* udp_conn, struct sockaddr_
         }
         else return NETWORK_PACKET_ERROR;
     } break;
-    case 0:  return NETWORK_SHUTDOWN;
+    case 0:  return NETWORK_FORCED_SHUTDOWN;
     default: {
         out_packet->length_bytes = n;
         return n;
@@ -138,8 +138,8 @@ network_receive_udp_packets_from_addr(UDP_Connection* udp_conn, const char* ip, 
     servaddr.sin_port = htons(port);
     inet_pton(AF_INET, ip, &servaddr.sin_addr.s_addr);
 
-    int len = sizeof(out_packet->buffer);
-    int n = recvfrom(udp_conn->socket, (char*)out_packet->buffer, len,
+    int len = sizeof(out_packet->data);
+    int n = recvfrom(udp_conn->socket, (char*)out_packet->data, len,
         (udp_conn->flags & NETWORK_FLAG_SOCKET_ASYNC) ? MSG_DONTWAIT : 0, (struct sockaddr*)&servaddr, &len);
 
     switch (n)
@@ -155,7 +155,7 @@ network_receive_udp_packets_from_addr(UDP_Connection* udp_conn, const char* ip, 
         }
         else return NETWORK_PACKET_ERROR;
     } break;
-    case 0:  return NETWORK_SHUTDOWN;
+    case 0:  return NETWORK_FORCED_SHUTDOWN;
     default: return n;
     }
 }
@@ -190,13 +190,13 @@ network_receive_udp_packets(UDP_Connection* udp_conn, UDP_Packet* out_packet)
         }
         else return NETWORK_PACKET_ERROR;
     } break;
-    case 0:  return NETWORK_SHUTDOWN;
+    case 0:  return NETWORK_FORCED_SHUTDOWN;
     default: {
         printf("received message(%d bytes) from %s:%d\n", status, inet_ntoa(client_info.sin_addr), ntohs(client_info.sin_port));
-        out_packet->client_info = client_info;
+        out_packet->sender_info = client_info;
         out_packet->length_bytes = status;
-        memcpy(out_packet->buffer, buffer, out_packet->length_bytes);
-        out_packet->buffer[out_packet->length_bytes] = 0;
+        memcpy(out_packet->data, buffer, out_packet->length_bytes);
+        out_packet->data[out_packet->length_bytes] = 0;
         return out_packet->length_bytes;
     } break;
     }
