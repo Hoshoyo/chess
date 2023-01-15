@@ -296,6 +296,26 @@ black_in_checkmate(Game* game)
 }
 
 static bool
+white_en_passant(Game* game, s32 from_x, s32 from_y, s32 to_x, s32 to_y)
+{
+    Chess_Piece piece = game->board[from_y][from_x];
+    if (piece == CHESS_WHITE_PAWN && game->last_move.moved_piece == CHESS_BLACK_PAWN && from_y == 4 && game->last_move.from_y == 6 && abs(game->last_move.from_y - game->last_move.to_y) == 2) {
+        return (abs(from_x - game->last_move.from_x) == 1) && (to_x == game->last_move.to_x);
+    }
+    return false;
+}
+
+static bool
+black_en_passant(Game* game, s32 from_x, s32 from_y, s32 to_x, s32 to_y)
+{
+    Chess_Piece piece = game->board[from_y][from_x];
+    if (piece == CHESS_BLACK_PAWN && game->last_move.moved_piece == CHESS_WHITE_PAWN && from_y == 3 && game->last_move.from_y == 1 && abs(game->last_move.from_y - game->last_move.to_y) == 2) {
+        return (abs(from_x - game->last_move.from_x) == 1) && (to_x == game->last_move.to_x);
+    }
+    return false;
+}
+
+static bool
 is_valid_move(Game* game, s32 from_x, s32 from_y, s32 to_x, s32 to_y, Chess_Piece promotion_piece)
 {
     Chess_Piece piece = game->board[from_y][from_x];
@@ -315,9 +335,8 @@ is_valid_move(Game* game, s32 from_x, s32 from_y, s32 to_x, s32 to_y, Chess_Piec
                     // Promotion with capture
                     return is_black(to_piece);
                 } else {
-                    // TODO(psv): en passant
                     // Normal capture
-                    return (is_black(to_piece));
+                    return (is_black(to_piece)) || white_en_passant(game, from_x, from_y, to_x, to_y);
                 }
             }
         } break;
@@ -333,9 +352,8 @@ is_valid_move(Game* game, s32 from_x, s32 from_y, s32 to_x, s32 to_y, Chess_Piec
                     // Promotion with capture
                     return is_white(to_piece);
                 } else {
-                    // TODO(psv): en passant
                     // Normal capture
-                    return (is_white(to_piece));
+                    return (is_white(to_piece)) || black_en_passant(game, from_x, from_y, to_x, to_y);
                 }
             }
         } break;
@@ -551,6 +569,11 @@ game_move(Game* game, s32 from_x, s32 from_y, s32 to_x, s32 to_y, Chess_Piece pr
         return false;
 
     // After all checks, perform the move
+    if (game->white_turn && white_en_passant(game, from_x, from_y, to_x, to_y))
+        game->board[to_y - 1][to_x] = CHESS_NONE;
+    if (!game->white_turn && black_en_passant(game, from_x, from_y, to_x, to_y))
+        game->board[to_y + 1][to_x] = CHESS_NONE;
+
     game->board[to_y][to_x] = new_piece;
     game->board[from_y][from_x] = CHESS_NONE;
 
