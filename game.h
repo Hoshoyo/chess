@@ -20,6 +20,8 @@ typedef enum {
     CHESS_BLACK_KNIGHT,
     CHESS_BLACK_BISHOP,
     CHESS_BLACK_PAWN,
+
+    CHESS_COUNT,
 } Chess_Piece;
 
 typedef enum {
@@ -54,9 +56,15 @@ typedef struct {
     bool black_long_castle_valid;
     bool black_short_castle_valid;
     Chess_Move last_move;
-    s32 move_count;
     s32 move_draw_count;
+
+    struct Game_History* history;
 } Game;
+
+typedef struct {
+    Game* game;
+    s32 repetition_index_check;
+} Game_History;
 
 void game_new(Game* game);
 int  game_move(Game* game, s32 from_x, s32 from_y, s32 to_x, s32 to_y, Chess_Piece promotion_choice, bool simulate);

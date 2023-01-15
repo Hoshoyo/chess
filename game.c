@@ -9,9 +9,11 @@ typedef struct {
 } Gen_Moves;
 
 s32 generate_possible_moves(Game* game, Gen_Moves* moves);
+bool check_sufficient_material(Game* game);
+bool check_repetition(Game* game);
 
 void
-game_new(Game* game)
+game_standard_board(Game* game)
 {
     memset(game->board, 0, sizeof(game->board));
     game->move_draw_count = 0;
@@ -53,6 +55,36 @@ game_new(Game* game)
     game->black_short_castle_valid = true;
 
     game->winner = PLAYER_NONE;
+}
+
+void
+game_queen_checkmate_board(Game* game)
+{
+    memset(game->board, 0, sizeof(game->board));
+    game->move_draw_count = 0;
+
+    game->board[2][2] = CHESS_WHITE_KING;
+    game->board[4][2] = CHESS_WHITE_QUEEN;
+    game->board[2][6] = CHESS_BLACK_KING;
+
+    game->winner = PLAYER_NONE;
+}
+
+void
+game_new(Game* game)
+{
+    game_standard_board(game);
+    //game_queen_checkmate_board(game);
+
+    if(game->history) {
+        array_free(((Game_History*)game->history)->game);
+        free(game->history);
+    }
+    game->history = calloc(1, sizeof(Game_History));
+
+    ((Game_History*)game->history)->game = array_new(Game);
+    ((Game_History*)game->history)->repetition_index_check = 0;
+    array_push(((Game_History*)game->history)->game, *game);
 }
 
 static bool
@@ -682,6 +714,19 @@ game_move(Game* game, s32 from_x, s32 from_y, s32 to_x, s32 to_y, Chess_Piece pr
         } else if(game->move_draw_count == 50 * 2) {
             printf("Draw by 50 move rule\n");
             game->winner = PLAYER_DRAW_50_MOVE;
+        } else if(!check_sufficient_material(game)) {
+            printf("Draw by insufficient material\n");
+            game->winner = PLAYER_DRAW_INSUFFICIENT_MATERIAL;
+        }
+
+        // Save history
+        array_push(((Game_History*)game->history)->game, *game);
+        if(game->move_draw_count == 0)
+            ((Game_History*)game->history)->repetition_index_check = array_length(((Game_History*)game->history)->game) - 1;
+
+        if(check_repetition(game)) {
+            printf("Draw by repetition\n");
+            game->winner = PLAYER_DRAW_THREE_FOLD_REPETITION;
         }
     }
 
@@ -1037,4 +1082,67 @@ generate_possible_moves(Game* game, Gen_Moves* moves)
         }
     }
     return array_length(moves->move);
+}
+
+bool
+check_sufficient_material(Game* game)
+{
+    Chess_Piece hist[CHESS_COUNT] = {0};
+    s32 total = 0;
+    s32 dark_square_bishop = 0;
+    s32 light_square_bishop = 0;
+    for(s32 y = 0; y < 8; ++y) {
+        for(s32 x = 0; x < 8; ++x) {
+            Chess_Piece p = game->board[y][x];
+            hist[p]++;
+            if(p != CHESS_NONE)
+                total++;
+            if(p == CHESS_BLACK_BISHOP || p == CHESS_WHITE_BISHOP) {
+                if((x + y) % 2 == 0)
+                    dark_square_bishop++;
+                else
+                    light_square_bishop++;
+            }
+        }
+    }
+
+    // Two kings
+    if(total == 2)
+        return false;
+
+    // King and bishop
+    if(total == 3 && hist[CHESS_WHITE_BISHOP] == 1 || total == 3 && hist[CHESS_BLACK_BISHOP] == 1)
+        return false;
+
+    // King and knight
+    if(total == 3 && hist[CHESS_WHITE_KNIGHT] == 1 || total == 3 && hist[CHESS_BLACK_KNIGHT] == 1)
+        return false;
+
+    // King and bishop vs king bishop of the same color
+    if(total == 4 && hist[CHESS_WHITE_BISHOP] == 1 && hist[CHESS_BLACK_BISHOP] == 1 && (light_square_bishop == 2 || dark_square_bishop == 2))
+        return false;
+
+    return true;
+}
+
+bool
+check_repetition(Game* game)
+{
+    s32 sum = 0;
+    Game_History* history = ((Game_History*)game->history);
+    for(s32 i = history->repetition_index_check; i < array_length(history->game) - 1; ++i) {
+        Game* gm = &history->game[i]; 
+        if(memcmp(gm->board, game->board, sizeof(game->board)) == 0) {
+            if (
+                gm->white_long_castle_valid == game->white_long_castle_valid &&
+                gm->white_short_castle_valid == game->white_short_castle_valid &&
+                gm->black_long_castle_valid == game->black_long_castle_valid &&
+                gm->black_short_castle_valid == game->black_short_castle_valid)
+            {
+                sum++;
+            }
+        }
+    }
+
+    return sum >= 2;
 }
