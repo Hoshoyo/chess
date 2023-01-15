@@ -1,6 +1,9 @@
 #pragma once
 #include "os.h"
 
+#define LAST_RANK 7
+#define FIRST_RANK 0
+
 typedef enum {
     CHESS_NONE = 0,
 
@@ -20,7 +23,25 @@ typedef enum {
 } Chess_Piece;
 
 typedef struct {
+    bool start;
+    s32 from_x;
+    s32 from_y;
+    s32 to_x;
+    s32 to_y;
+    Chess_Piece promotion_piece;
+    Chess_Piece moved_piece;
+} Chess_Move;
+
+typedef struct {
     Chess_Piece board[8][8];
+    Chess_Piece sim_board[8][8];
+
+    bool white_turn;
+    bool white_long_castle_valid;
+    bool white_short_castle_valid;
+    bool black_long_castle_valid;
+    bool black_short_castle_valid;
+    Chess_Move last_move;
 } Game;
 
 void game_new(Game* game);
