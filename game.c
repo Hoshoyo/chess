@@ -76,6 +76,13 @@ game_new(Game* game)
     game_standard_board(game);
     //game_queen_checkmate_board(game);
 
+    game->black_time_ms = 1000 * 60 * 5;
+    game->white_time_ms = 1000 * 60 * 5;
+
+    game->increment_ms = 1000;
+
+    game->clock = 0;
+
     if(game->history) {
         array_free(((Game_History*)game->history)->game);
         free(game->history);
@@ -556,6 +563,9 @@ is_valid_move(Game* game, s32 from_x, s32 from_y, s32 to_x, s32 to_y, Chess_Piec
 bool
 game_move(Game* game, s32 from_x, s32 from_y, s32 to_x, s32 to_y, Chess_Piece promotion_choice, bool simulate)
 {
+    if(game->clock == 0)
+        game->clock = os_time_us() / 1000.0;
+
     // Copy the state so we can simulate
     memcpy(game->sim_board, game->board, sizeof(game->board));
 
@@ -678,6 +688,11 @@ game_move(Game* game, s32 from_x, s32 from_y, s32 to_x, s32 to_y, Chess_Piece pr
             game->move_draw_count = 0;
         else
             game->move_draw_count++;
+
+        if(game->white_turn)
+            game->white_time_ms += game->increment_ms;
+        else
+            game->black_time_ms += game->increment_ms;
 
         // Pass the turn
         game->white_turn = !game->white_turn;

@@ -28,6 +28,8 @@ typedef enum {
     PLAYER_NONE = 0,
     PLAYER_WHITE,
     PLAYER_BLACK,
+    PLAYER_WHITE_TIME,
+    PLAYER_BLACK_TIME,
     PLAYER_DRAW_STALEMATE,
     PLAYER_DRAW_INSUFFICIENT_MATERIAL,
     PLAYER_DRAW_THREE_FOLD_REPETITION,
@@ -56,6 +58,12 @@ typedef struct {
     bool black_short_castle_valid;
     Chess_Move last_move;
     s32 move_draw_count;
+
+    r64 white_time_ms;
+    r64 black_time_ms;
+    
+    r64 increment_ms;
+    r64 clock;
 
     struct Game_History* history;
 } Game;

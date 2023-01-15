@@ -163,13 +163,11 @@ interface_input(Chess_Interface interf, Game* game)
     AppInterface* chess = (AppInterface*)interf;
 	AppInput* input = &chess->input;
 
-    Game last_turn = *game;
-
 	s32 xx = -1, yy = -1;
 	Hinp_Event ev = {0};
 	while (hinp_event_next(&ev)) {
 		if(ev.type == HINP_EVENT_MOUSE_CLICK) {
-			xx = floorf(((r32)ev.mouse.x / (r32)chess->window_width) * 8.0f);
+			xx = floorf(((r32)ev.mouse.x / (r32)chess->window_height) * 8.0f);
 			yy = floorf(8.0f - (((r32)ev.mouse.y / (r32)chess->window_height) * 8.0f));
 
 			if(ev.mouse.action == 1) {
@@ -195,7 +193,7 @@ interface_input(Chess_Interface interf, Game* game)
                 input->scroll_down_count = 0;
 			}
 		} else if(ev.type == HINP_EVENT_MOUSE_MOVE) {
-			xx = floorf(((r32)ev.mouse.x / (r32)chess->window_width) * 8.0f);
+			xx = floorf(((r32)ev.mouse.x / (r32)chess->window_height) * 8.0f);
 			yy = floorf(8.0f - (((r32)ev.mouse.y / (r32)chess->window_height) * 8.0f));
 			input->at_x = xx;
 			input->at_y = yy;
@@ -226,6 +224,8 @@ winner_text(Player p)
     switch (p) {
         case PLAYER_WHITE: return "White won by checkmate!"; break;
         case PLAYER_BLACK: return "Black won by checkmate!"; break;
+        case PLAYER_WHITE_TIME: return "White won on time"; break;
+        case PLAYER_BLACK_TIME: return "Black won on time"; break;
         case PLAYER_DRAW_STALEMATE: return "Draw by stalemate."; break;
         case PLAYER_DRAW_50_MOVE: return "Draw by 50 move."; break;
         case PLAYER_DRAW_INSUFFICIENT_MATERIAL: return "Draw by insufficient material."; break;
@@ -234,13 +234,65 @@ winner_text(Player p)
     }
 }
 
+void
+timer_to_text(char* buffer, r64 timer)
+{
+    r64 sec = timer / 1000;
+    r64 min = sec / 60;
+    
+    int s = (int)sec % 60;
+    int m = (int)min;
+    sprintf(buffer, "%02d:%02d", m, s);
+}
+
+void 
+interface_render_clock(AppInterface* chess, Hobatch_Context* ctx, Game* game)
+{
+    // update the clock
+    if(game->clock != 0) {
+        r64 elapsed = (os_time_us() / 1000.0) - game->clock;
+        game->clock = (os_time_us() / 1000.0);
+
+        if(game->white_turn)
+            game->white_time_ms -= elapsed;
+        else
+            game->black_time_ms -= elapsed;
+        if(game->white_time_ms < 0) {
+            game->white_time_ms = 0;
+            game->winner = PLAYER_BLACK_TIME;
+        }
+        if(game->black_time_ms < 0) {
+            game->black_time_ms = 0;
+            game->winner = PLAYER_WHITE_TIME;
+        }
+    }
+
+    // background
+    batch_render_quad_color_solid(ctx, (vec3) { chess->window_height, chess->window_height / 2.0f, 0 }, chess->window_width - chess->window_height, chess->window_height / 2.0f, (vec4){0.3f, 0.33f, 0.3f, 1.0f});
+    batch_render_quad_color_solid(ctx, (vec3) { chess->window_height, 0, 0 }, chess->window_width - chess->window_height, chess->window_height / 2.0f, gm_vec4_subtract(white_bg, (vec4){0.3f, 0.3f, 0.3f, 0.0f}));
+
+    // black timer
+    //const char* text = "10:00";
+    char text[32] = {0};
+    timer_to_text((char*)text, game->black_time_ms);
+    vec4 btext_pos = batch_pre_render_text(ctx, &chess->font->data, text, strlen(text), 0, (vec2) { 0, 0 }, 0, 0);
+    r32 ff = (chess->window_width - chess->window_height - btext_pos.z) / 2.0f;
+    batch_render_text(ctx, &chess->font->data, text, strlen(text), 0, (vec2) { chess->window_width - btext_pos.z - ff, chess->window_height / 2.0f + 20.0f }, (vec4) { 0, 0, FLT_MAX, FLT_MAX }, (vec4) { 1, 1, 1, 1 }, 0, 0);
+
+    // white timer
+    timer_to_text((char*)text, game->white_time_ms);
+    vec4 wtext_pos = batch_pre_render_text(ctx, &chess->font->data, text, strlen(text), 0, (vec2) { 0, 0 }, 0, 0);
+    ff = (chess->window_width - chess->window_height - wtext_pos.z) / 2.0f;
+    batch_render_text(ctx, &chess->font->data, text, strlen(text), 0, (vec2) { chess->window_width - wtext_pos.z - ff, chess->window_height / 2.0f - 20.0f - wtext_pos.w }, (vec4) { 0, 0, FLT_MAX, FLT_MAX }, (vec4) { 1, 1, 1, 1 }, 0, 0);
+}
+
 void 
 interface_render(Chess_Interface interf, Hobatch_Context* ctx, Game* game)
 {
     AppInterface* chess = (AppInterface*)interf;
 	AppInput* input = &chess->input;
 
-    r32 w = chess->window_width / 8.0f;
+    r32 w = chess->window_height / 8.0f;
     r32 h = chess->window_height / 8.0f;
 
     Chess_Piece piece_selected = CHESS_NONE;
@@ -284,12 +336,14 @@ interface_render(Chess_Interface interf, Hobatch_Context* ctx, Game* game)
             }
         }
     }
+
+    interface_render_clock(chess, ctx, game);
+
     if (input->pressed) {
         u32 texture = 0;
         if(texture_from_piece(chess, piece_selected, &texture))
             batch_render_quad_textured(ctx, (vec3){input->real_x - w / 2, input->real_y - h / 2, 0}, w, h, texture);
     }
-    
 
     if (game->winner != PLAYER_NONE) {
         const char* text = winner_text(game->winner);

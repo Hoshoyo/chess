@@ -130,7 +130,7 @@ int main(int argc, char** argv)
 #endif
 {
 	Window window = { 0 };
-	window_new_opengl(&window, hinp_callback, "NeloChess", 800 + 16, 800 + 39);
+	window_new_opengl(&window, hinp_callback, "NeloChess", 800 + 16 + 200, 800 + 39);
 
 	wgl_swap_interval_ext* wglSwapIntervalEXT = (wgl_swap_interval_ext*)wglGetProcAddress("wglSwapIntervalEXT");
 	if(wglSwapIntervalEXT) wglSwapIntervalEXT(1);
