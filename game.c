@@ -1,11 +1,20 @@
 #include "game.h"
+#include <light_array.h>
 
 #define MAX(A, B) (((A) > (B)) ? (A) : (B))
 #define MIN(A, B) (((A) < (B)) ? (A) : (B))
 
+typedef struct {
+    Chess_Move* move;
+} Gen_Moves;
+
+s32 generate_possible_moves(Game* game, Gen_Moves* moves);
+
 void
 game_new(Game* game)
 {
+    memset(game->board, 0, sizeof(game->board));
+#if 0
     for(s32 y = 0; y < 8; ++y)
         for(s32 x = 0; x < 8; ++x)
         {
@@ -41,6 +50,14 @@ game_new(Game* game)
     game->white_short_castle_valid = true;
     game->black_long_castle_valid = true;
     game->black_short_castle_valid = true;
+#else
+    game->white_turn = true;
+    game->board[0][0] = CHESS_WHITE_QUEEN;
+    game->board[4][3] = CHESS_WHITE_KING;
+    game->board[5][6] = CHESS_BLACK_KING;
+#endif
+
+    game->winner = PLAYER_NONE;
 }
 
 static bool
@@ -264,7 +281,7 @@ white_in_check(Game* game, bool sim)
     for (s32 y = 0; y < 8; ++y)
         for (s32 x = 0; x < 8; ++x)
         {
-            if (game->sim_board[y][x] == CHESS_WHITE_KING)
+            if (board[y * 8 + x] == CHESS_WHITE_KING)
                 return square_attacked(board, x, y) & BLACK_ATTACK;
         }
     return false;
@@ -277,7 +294,7 @@ black_in_check(Game* game, bool sim)
     for (s32 y = 0; y < 8; ++y)
         for (s32 x = 0; x < 8; ++x)
         {
-            if (game->sim_board[y][x] == CHESS_BLACK_KING)
+            if (board[y * 8 + x] == CHESS_BLACK_KING)
                 return square_attacked(board, x, y) & WHITE_ATTACK;
         }
     return false;
@@ -318,6 +335,9 @@ black_en_passant(Game* game, s32 from_x, s32 from_y, s32 to_x, s32 to_y)
 static bool
 is_valid_move(Game* game, s32 from_x, s32 from_y, s32 to_x, s32 to_y, Chess_Piece promotion_piece)
 {
+    if(!inside_board(from_x, from_y) || !inside_board(to_x, to_y))
+        return false;
+
     Chess_Piece piece = game->board[from_y][from_x];
     Chess_Piece to_piece = game->board[to_y][to_x];
 
@@ -518,8 +538,8 @@ is_valid_move(Game* game, s32 from_x, s32 from_y, s32 to_x, s32 to_y, Chess_Piec
     return false;
 }
 
-int
-game_move(Game* game, s32 from_x, s32 from_y, s32 to_x, s32 to_y, Chess_Piece promotion_choice)
+bool
+game_move(Game* game, s32 from_x, s32 from_y, s32 to_x, s32 to_y, Chess_Piece promotion_choice, bool simulate)
 {
     // Copy the state so we can simulate
     memcpy(game->sim_board, game->board, sizeof(game->board));
@@ -528,7 +548,7 @@ game_move(Game* game, s32 from_x, s32 from_y, s32 to_x, s32 to_y, Chess_Piece pr
     Chess_Piece to_piece = game->board[to_y][to_x];
 
     if (from_piece == CHESS_NONE) {
-        return -1;
+        return false;
     }
 
     Chess_Piece new_piece = from_piece;
@@ -536,21 +556,21 @@ game_move(Game* game, s32 from_x, s32 from_y, s32 to_x, s32 to_y, Chess_Piece pr
         if (promotion_choice == CHESS_WHITE_QUEEN || promotion_choice == CHESS_WHITE_ROOK || promotion_choice == CHESS_WHITE_KNIGHT || promotion_choice == CHESS_WHITE_BISHOP)
             new_piece = promotion_choice;
         else
-            return -1; // Invalid promotion of black piece
+            return false; // Invalid promotion of black piece
     }
     if(from_piece == CHESS_BLACK_PAWN && to_y == FIRST_RANK) {
         if (promotion_choice == CHESS_BLACK_QUEEN || promotion_choice == CHESS_BLACK_ROOK || promotion_choice == CHESS_BLACK_KNIGHT || promotion_choice == CHESS_BLACK_BISHOP)
             new_piece = promotion_choice;
         else
-            return -1; // Invalid promotion of black piece
+            return false; // Invalid promotion of black piece
     }
 
     // Check if who is moving is in fact who's turn it is
     if(!(game->white_turn && is_white(from_piece) || !game->white_turn && is_black(from_piece)))
-        return -1; // Invalid move, not the pieces turn
+        return false; // Invalid move, not the pieces turn
 
     bool valid = is_valid_move(game, from_x, from_y, to_x, to_y, promotion_choice);
-    if (!valid) return -1;
+    if (!valid) return false;
 
     // Check castle while in check
     if (from_piece == CHESS_WHITE_KING && abs(from_x - to_x) == 2 && white_in_check(game, false))
@@ -568,65 +588,441 @@ game_move(Game* game, s32 from_x, s32 from_y, s32 to_x, s32 to_y, Chess_Piece pr
     if (!game->white_turn && black_in_check(game, true))
         return false;
 
-    // After all checks, perform the move
-    if (game->white_turn && white_en_passant(game, from_x, from_y, to_x, to_y))
-        game->board[to_y - 1][to_x] = CHESS_NONE;
-    if (!game->white_turn && black_en_passant(game, from_x, from_y, to_x, to_y))
-        game->board[to_y + 1][to_x] = CHESS_NONE;
+    if(!simulate) {    
+        // After all checks, perform the move
+        if (game->white_turn && white_en_passant(game, from_x, from_y, to_x, to_y))
+            game->board[to_y - 1][to_x] = CHESS_NONE;
+        if (!game->white_turn && black_en_passant(game, from_x, from_y, to_x, to_y))
+            game->board[to_y + 1][to_x] = CHESS_NONE;
 
-    game->board[to_y][to_x] = new_piece;
-    game->board[from_y][from_x] = CHESS_NONE;
+        game->board[to_y][to_x] = new_piece;
+        game->board[from_y][from_x] = CHESS_NONE;
 
-    // Saves the last move to check en passant
-    game->last_move.start = false;
-    game->last_move.promotion_piece = promotion_choice;
-    game->last_move.from_x = from_x;
-    game->last_move.from_y = from_y;
-    game->last_move.to_x = to_x;
-    game->last_move.to_y = to_y;
-    game->last_move.moved_piece = from_piece;
+        // Saves the last move to check en passant
+        game->last_move.start = false;
+        game->last_move.promotion_piece = promotion_choice;
+        game->last_move.from_x = from_x;
+        game->last_move.from_y = from_y;
+        game->last_move.to_x = to_x;
+        game->last_move.to_y = to_y;
+        game->last_move.moved_piece = from_piece;
 
-    if(from_piece == CHESS_WHITE_KING) {
-        if(from_x - to_x == 2) {
-            // Castle long
-            game->board[to_y][to_x + 1] = CHESS_WHITE_ROOK;
-            game->board[to_y][0] = CHESS_NONE;
-        } else if (from_x - to_x == -2) {
-            // Castle short
-            game->board[to_y][to_x - 1] = CHESS_WHITE_ROOK;
-            game->board[to_y][7] = CHESS_NONE;
-        }
-        game->white_long_castle_valid = false;
-        game->white_short_castle_valid = false;
-    }
-    if(from_piece == CHESS_BLACK_KING) {
-        if(from_x - to_x == 2) {
-            // Castle long
-            game->board[to_y][to_x + 1] = CHESS_BLACK_ROOK;
-            game->board[to_y][0] = CHESS_NONE;
-        } else if (from_x - to_x == -2) {
-            // Castle short
-            game->board[to_y][to_x - 1] = CHESS_BLACK_ROOK;
-            game->board[to_y][7] = CHESS_NONE;
-        }
-        game->black_long_castle_valid = false;
-        game->black_short_castle_valid = false;
-    }
-    if (from_piece == CHESS_WHITE_ROOK) {
-        if (game->white_short_castle_valid && from_x == 7 && from_y == 0)
-            game->white_short_castle_valid = false;
-        if (game->white_long_castle_valid && from_x == 0 && from_y == 0)
+        if(from_piece == CHESS_WHITE_KING) {
+            if(from_x - to_x == 2) {
+                // Castle long
+                game->board[to_y][to_x + 1] = CHESS_WHITE_ROOK;
+                game->board[to_y][0] = CHESS_NONE;
+            } else if (from_x - to_x == -2) {
+                // Castle short
+                game->board[to_y][to_x - 1] = CHESS_WHITE_ROOK;
+                game->board[to_y][7] = CHESS_NONE;
+            }
             game->white_long_castle_valid = false;
-    }
-    if (from_piece == CHESS_BLACK_ROOK) {
-        if (game->black_short_castle_valid && from_x == 7 && from_y == 7)
-            game->black_short_castle_valid = false;
-        if (game->black_long_castle_valid && from_x == 0 && from_y == 7)
+            game->white_short_castle_valid = false;
+        }
+        if(from_piece == CHESS_BLACK_KING) {
+            if(from_x - to_x == 2) {
+                // Castle long
+                game->board[to_y][to_x + 1] = CHESS_BLACK_ROOK;
+                game->board[to_y][0] = CHESS_NONE;
+            } else if (from_x - to_x == -2) {
+                // Castle short
+                game->board[to_y][to_x - 1] = CHESS_BLACK_ROOK;
+                game->board[to_y][7] = CHESS_NONE;
+            }
             game->black_long_castle_valid = false;
+            game->black_short_castle_valid = false;
+        }
+        if (from_piece == CHESS_WHITE_ROOK) {
+            if (game->white_short_castle_valid && from_x == 7 && from_y == 0)
+                game->white_short_castle_valid = false;
+            if (game->white_long_castle_valid && from_x == 0 && from_y == 0)
+                game->white_long_castle_valid = false;
+        }
+        if (from_piece == CHESS_BLACK_ROOK) {
+            if (game->black_short_castle_valid && from_x == 7 && from_y == 7)
+                game->black_short_castle_valid = false;
+            if (game->black_long_castle_valid && from_x == 0 && from_y == 7)
+                game->black_long_castle_valid = false;
+        }
+
+        // Pass the turn
+        game->white_turn = !game->white_turn;
+
+        Gen_Moves moves = {0};
+        s32 count_moves = generate_possible_moves(game, &moves);
+        s32 mv_count = 0;
+        for(int i = 0; i < array_length(moves.move); ++i) {
+            if(game_move(game, moves.move[i].from_x, moves.move[i].from_y, moves.move[i].to_x, moves.move[i].to_y, moves.move[i].promotion_piece, true)) {
+                mv_count++;
+            }
+        }
+        if(mv_count == 0) {
+            if(!game->white_turn) {
+                if(black_in_check(game, false))
+                    printf("Checkmate, white wins by checkmate\n");
+                else
+                    printf("Draw by stalemate\n");
+            }
+            else {
+                if(white_in_check(game, false))
+                    printf("Checkmate, black wins by checkmate\n");
+                else
+                    printf("Draw by stalemate\n");
+            }
+        }
     }
 
-    // Pass the turn
-    game->white_turn = !game->white_turn;
+    return true;
+}
 
-    return 0;
+static void 
+generate_pawn_moves(Game* game, s32 x, s32 y, Gen_Moves* moves) 
+{
+	Chess_Move mv = {0};
+	mv.from_y = y;
+	mv.from_x = x;
+
+	s8 move_direction = 1;
+	s8 black_piece_flag = 0;
+	s8 seventh_rank = 6;
+	if (!game->white_turn) {
+		move_direction = -1;
+		black_piece_flag = 8;
+		seventh_rank = 2;
+	}
+
+	// advance once
+	{
+		mv.to_y = y;
+		mv.to_x = y + move_direction;
+
+		// advance once promote
+		if (y == seventh_rank) {
+			mv.promotion_piece = (move_direction == 1) ? CHESS_WHITE_QUEEN : CHESS_BLACK_QUEEN;
+            if(is_valid_move(game, mv.from_x, mv.from_y, mv.to_x, mv.to_y, mv.promotion_piece))
+            {
+                array_push(moves->move, mv);
+                mv.promotion_piece = (move_direction == 1) ? CHESS_WHITE_ROOK : CHESS_BLACK_ROOK;
+                array_push(moves->move, mv);
+                mv.promotion_piece = (move_direction == 1) ? CHESS_WHITE_BISHOP : CHESS_BLACK_BISHOP;
+                array_push(moves->move, mv);
+                mv.promotion_piece = (move_direction == 1) ? CHESS_WHITE_KNIGHT : CHESS_BLACK_KNIGHT;
+                array_push(moves->move, mv);
+            }
+		} else {
+			if(is_valid_move(game, mv.from_x, mv.from_y, mv.to_x, mv.to_y, mv.promotion_piece))
+                array_push(moves->move, mv);
+		}
+	}
+
+	// advance twice
+	{
+		mv.promotion_piece = CHESS_NONE;
+		mv.to_x = x;
+		mv.to_y = y + 2 * move_direction;
+		if(is_valid_move(game, mv.from_x, mv.from_y, mv.to_x, mv.to_y, mv.promotion_piece))
+			array_push(moves->move, mv);
+	}
+
+	// capture normal - en passant
+	{
+		mv.to_y = y + move_direction;
+		if (y == seventh_rank) {
+			// capture promote
+			mv.to_x = x + 1;
+			mv.promotion_piece = (move_direction == 1) ? CHESS_WHITE_KNIGHT : CHESS_BLACK_KNIGHT;
+			if(is_valid_move(game, mv.from_x, mv.from_y, mv.to_x, mv.to_y, mv.promotion_piece)) {
+				array_push(moves->move, mv);
+                mv.promotion_piece = (move_direction == 1) ? CHESS_WHITE_ROOK : CHESS_BLACK_ROOK;
+                array_push(moves->move, mv);
+                mv.promotion_piece = (move_direction == 1) ? CHESS_WHITE_BISHOP : CHESS_BLACK_BISHOP;
+                array_push(moves->move, mv);
+                mv.promotion_piece = (move_direction == 1) ? CHESS_WHITE_KNIGHT : CHESS_BLACK_KNIGHT;
+                array_push(moves->move, mv);
+			}
+
+            mv.to_x = x - 1;
+			mv.promotion_piece = (move_direction == 1) ? CHESS_WHITE_KNIGHT : CHESS_BLACK_KNIGHT;
+			if(is_valid_move(game, mv.from_x, mv.from_y, mv.to_x, mv.to_y, mv.promotion_piece)) {
+				array_push(moves->move, mv);
+                mv.promotion_piece = (move_direction == 1) ? CHESS_WHITE_ROOK : CHESS_BLACK_ROOK;
+                array_push(moves->move, mv);
+                mv.promotion_piece = (move_direction == 1) ? CHESS_WHITE_BISHOP : CHESS_BLACK_BISHOP;
+                array_push(moves->move, mv);
+                mv.promotion_piece = (move_direction == 1) ? CHESS_WHITE_KNIGHT : CHESS_BLACK_KNIGHT;
+                array_push(moves->move, mv);
+			}
+		} else {
+			mv.promotion_piece = CHESS_NONE;
+
+			mv.to_x = x + 1;
+            if(is_valid_move(game, mv.from_x, mv.from_y, mv.to_x, mv.to_y, mv.promotion_piece)) {
+                array_push(moves->move, mv);
+            }
+
+			mv.to_x = x - 1;
+            if(is_valid_move(game, mv.from_x, mv.from_y, mv.to_x, mv.to_y, mv.promotion_piece)) {
+                array_push(moves->move, mv);
+            }
+		}
+	}
+}
+
+static void 
+generate_bishop_moves(Game* game, s32 x, s32 y, Gen_Moves* moves) 
+{
+	Chess_Move mv = {0};
+	mv.from_x = x;
+	mv.from_y = y;
+
+	// top left
+	for (s32 i = y + 1, j = x -1 ; i < 8 && j >= 0; ++i, --j) {
+		mv.to_x = j;
+		mv.to_y = i;
+		if(is_valid_move(game, mv.from_x, mv.from_y, mv.to_x, mv.to_y, mv.promotion_piece)) {
+			array_push(moves->move, mv);
+		} else
+			break;
+	}
+
+	// top right
+	for (s32 i = y + 1, j = x + 1; i < 8 && j < 8; ++i, ++j) {
+		mv.to_x = j;
+		mv.to_y = i;
+		if(is_valid_move(game, mv.from_x, mv.from_y, mv.to_x, mv.to_y, mv.promotion_piece)) {
+			array_push(moves->move, mv);
+		} else
+			break;
+	}
+
+	// bot left
+	for (s32 i = y - 1, j = x - 1; i >= 0 && j >= 0; --i, --j) {
+		mv.to_x = j;
+		mv.to_y = i;
+		if(is_valid_move(game, mv.from_x, mv.from_y, mv.to_x, mv.to_y, mv.promotion_piece)) {
+			array_push(moves->move, mv);
+		}
+		else
+			break;
+	}
+
+	// bot right
+	for (s32 i = y - 1, j = x + 1; i >= 0, j < 8; --i, ++j) {
+		mv.to_x = j;
+		mv.to_y = i;
+		if(is_valid_move(game, mv.from_x, mv.from_y, mv.to_x, mv.to_y, mv.promotion_piece))  {
+			array_push(moves->move, mv);
+		} else
+			break;
+	}
+}
+
+static void 
+generate_knight_moves(Game* game, s32 x, s32 y, Gen_Moves* moves)
+{
+	Chess_Move mv = {0};
+	mv.from_x = x;
+	mv.from_y = y;
+
+	// L up left
+	mv.to_x = x - 1;
+	mv.to_y = y + 2;
+	if(is_valid_move(game, mv.from_x, mv.from_y, mv.to_x, mv.to_y, mv.promotion_piece)) {
+		array_push(moves->move, mv);
+	}
+
+	// L up right
+	mv.to_x = x + 1;
+	mv.to_y = y + 2;
+	if(is_valid_move(game, mv.from_x, mv.from_y, mv.to_x, mv.to_y, mv.promotion_piece)) {
+		array_push(moves->move, mv);
+	}
+
+	// L down left
+	mv.to_x = x - 1;
+	mv.to_y = y - 2;
+	if(is_valid_move(game, mv.from_x, mv.from_y, mv.to_x, mv.to_y, mv.promotion_piece)) {
+		array_push(moves->move, mv);
+	}
+
+	// L down right
+	mv.to_x = x + 1;
+	mv.to_y = y - 2;
+	if(is_valid_move(game, mv.from_x, mv.from_y, mv.to_x, mv.to_y, mv.promotion_piece)) {
+		array_push(moves->move, mv);
+	}
+
+	// L right up
+	mv.to_x = x + 2;
+	mv.to_y = y + 1;
+	if(is_valid_move(game, mv.from_x, mv.from_y, mv.to_x, mv.to_y, mv.promotion_piece)) {
+		array_push(moves->move, mv);
+	}
+
+	// L right down
+	mv.to_x = x + 2;
+	mv.to_y = y - 1;
+	if(is_valid_move(game, mv.from_x, mv.from_y, mv.to_x, mv.to_y, mv.promotion_piece)) {
+		array_push(moves->move, mv);
+	}
+
+	// L left up
+	mv.to_x = x - 2;
+	mv.to_y = y + 1;
+	if(is_valid_move(game, mv.from_x, mv.from_y, mv.to_x, mv.to_y, mv.promotion_piece)) {
+		array_push(moves->move, mv);
+	}
+
+	// L left down
+	mv.to_x = x - 2;
+	mv.to_y = y - 1;
+	if(is_valid_move(game, mv.from_x, mv.from_y, mv.to_x, mv.to_y, mv.promotion_piece)) {
+		array_push(moves->move, mv);
+	}
+}
+
+static void 
+generate_rook_moves(Game* game, s32 x, s32 y, Gen_Moves* moves)
+{
+	Chess_Move mv = {0};
+	mv.from_x = x;
+	mv.from_y = y;
+
+	// up
+	mv.to_x = x;
+	for (s32 i = y + 1; i < 8; ++i) {
+		mv.to_y = i;
+		if(is_valid_move(game, mv.from_x, mv.from_y, mv.to_x, mv.to_y, mv.promotion_piece)) {
+			array_push(moves->move, mv);
+		} else
+			break;
+	}
+
+	// down
+	for (s32 i = y - 1; i >= 0; --i) {
+		mv.to_y = i;
+		if(is_valid_move(game, mv.from_x, mv.from_y, mv.to_x, mv.to_y, mv.promotion_piece)) {
+			array_push(moves->move, mv);
+		} else
+			break;
+	}
+
+	// left
+	mv.to_y = y;
+	for (s32 i = x - 1; i >= 0; --i) {
+		mv.to_x = i;
+		if(is_valid_move(game, mv.from_x, mv.from_y, mv.to_x, mv.to_y, mv.promotion_piece)) {
+			array_push(moves->move, mv);
+		} else
+			break;
+	}
+
+	// right
+	for (s32 i = x + 1; i < 8; ++i) {
+		mv.to_x = i;
+		if(is_valid_move(game, mv.from_x, mv.from_y, mv.to_x, mv.to_y, mv.promotion_piece)) {
+			array_push(moves->move, mv);
+		} else
+			break;
+	}
+}
+
+static void
+generate_queen_moves(Game* game, s32 x, s32 y, Gen_Moves* moves)
+{
+	generate_rook_moves(game, x, y, moves);
+	generate_bishop_moves(game, x, y, moves);
+}
+
+static void 
+generate_king_moves(Game* game, s32 x, s32 y, Gen_Moves* moves)
+{
+	Chess_Move mv = {0};
+	mv.from_x = x;
+	mv.from_y = y;
+
+    // Normal moves
+    mv.to_x = x + 1; // right
+    mv.to_y = y;
+    if(is_valid_move(game, mv.from_x, mv.from_y, mv.to_x, mv.to_y, mv.promotion_piece)) 
+        array_push(moves->move, mv);
+
+    mv.to_x = x - 1; // left
+    mv.to_y = y;
+    if(is_valid_move(game, mv.from_x, mv.from_y, mv.to_x, mv.to_y, mv.promotion_piece)) 
+        array_push(moves->move, mv);
+
+    mv.to_x = x; // top
+    mv.to_y = y + 1;
+    if(is_valid_move(game, mv.from_x, mv.from_y, mv.to_x, mv.to_y, mv.promotion_piece)) 
+        array_push(moves->move, mv);
+    
+    mv.to_x = x; // bottom
+    mv.to_y = y - 1;
+    if(is_valid_move(game, mv.from_x, mv.from_y, mv.to_x, mv.to_y, mv.promotion_piece)) 
+        array_push(moves->move, mv);
+
+    mv.to_x = x - 1; // top left
+    mv.to_y = y + 1;
+    if(is_valid_move(game, mv.from_x, mv.from_y, mv.to_x, mv.to_y, mv.promotion_piece)) 
+        array_push(moves->move, mv);
+    
+    mv.to_x = x + 1; // top right
+    mv.to_y = y + 1;
+    if(is_valid_move(game, mv.from_x, mv.from_y, mv.to_x, mv.to_y, mv.promotion_piece)) 
+        array_push(moves->move, mv);
+
+    mv.to_x = x - 1; // bot left
+    mv.to_y = y - 1;
+    if(is_valid_move(game, mv.from_x, mv.from_y, mv.to_x, mv.to_y, mv.promotion_piece)) 
+        array_push(moves->move, mv);
+    
+    mv.to_x = x + 1; // bot right
+    mv.to_y = y - 1;
+    if(is_valid_move(game, mv.from_x, mv.from_y, mv.to_x, mv.to_y, mv.promotion_piece)) 
+        array_push(moves->move, mv);
+
+    mv.to_x = x + 2; // castle
+    mv.to_y = y;
+    if(is_valid_move(game, mv.from_x, mv.from_y, mv.to_x, mv.to_y, mv.promotion_piece)) 
+        array_push(moves->move, mv);
+
+    mv.to_x = x - 2; // castle
+    mv.to_y = y;
+    if(is_valid_move(game, mv.from_x, mv.from_y, mv.to_x, mv.to_y, mv.promotion_piece)) 
+        array_push(moves->move, mv);
+}
+
+s32 
+generate_possible_moves(Game* game, Gen_Moves* moves) 
+{
+    moves->move = array_new(Chess_Move);
+
+    for (s32 y = 0; y < 8; ++y) {
+        for (s32 x = 0; x < 8; ++x) {
+            Chess_Piece p = game->board[y][x];
+            if (game->white_turn && is_black(p))
+                continue;
+            if (!game->white_turn && is_white(p))
+                continue;
+            switch (p) 
+            {
+                case CHESS_BLACK_PAWN:
+                case CHESS_WHITE_PAWN:		generate_pawn_moves(game, x, y, moves); break;
+                case CHESS_BLACK_BISHOP:
+                case CHESS_WHITE_BISHOP:	generate_bishop_moves(game, x, y, moves); break;
+                case CHESS_BLACK_KNIGHT:
+                case CHESS_WHITE_KNIGHT:	generate_knight_moves(game, x, y, moves); break;
+                case CHESS_BLACK_ROOK:
+                case CHESS_WHITE_ROOK:		generate_rook_moves(game, x, y, moves); break;
+                case CHESS_BLACK_QUEEN:
+                case CHESS_WHITE_QUEEN:		generate_queen_moves(game, x, y, moves); break;
+                case CHESS_BLACK_KING:
+                case CHESS_WHITE_KING:		generate_king_moves(game, x, y, moves); break;
+                default: break;
+            }
+        }
+    }
+    return array_length(moves->move);
 }

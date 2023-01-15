@@ -22,6 +22,13 @@ typedef enum {
     CHESS_BLACK_PAWN,
 } Chess_Piece;
 
+typedef enum {
+    PLAYER_NONE = 0,
+    PLAYER_WHITE,
+    PLAYER_BLACK,
+    PLAYER_DRAW,
+} Player;
+
 typedef struct {
     bool start;
     s32 from_x;
@@ -36,6 +43,7 @@ typedef struct {
     Chess_Piece board[8][8];
     Chess_Piece sim_board[8][8];
 
+    Player winner;
     bool white_turn;
     bool white_long_castle_valid;
     bool white_short_castle_valid;
@@ -45,4 +53,4 @@ typedef struct {
 } Game;
 
 void game_new(Game* game);
-int  game_move(Game* game, s32 from_x, s32 from_y, s32 to_x, s32 to_y, Chess_Piece promotion_choice);
+int  game_move(Game* game, s32 from_x, s32 from_y, s32 to_x, s32 to_y, Chess_Piece promotion_choice, bool simulate);
