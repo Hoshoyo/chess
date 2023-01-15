@@ -1,3 +1,4 @@
+server/bin/*
 bin/*
 !bin/*.exe
 !bin/*.dll
