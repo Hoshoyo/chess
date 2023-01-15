@@ -7,12 +7,6 @@
 #include "network/network.h"
 #include "network/messages.h"
 
-#define SERVER_PORT 9999
-#define SERVER_IP "localhost"
-
-const vec4 black_bg = { 118.0f / 255.0f, 150.0f / 255.0f , 86.0f / 255.0f, 1.0f };
-const vec4 white_bg = { 238.0f / 255.0f, 238.0f / 255.0f , 210.0f / 255.0f, 1.0f };
-
 typedef struct {
 	bool pressed;
 	bool selected;
@@ -50,6 +44,9 @@ typedef struct {
     u32 black_knight;
     u32 black_pawn;
 
+    vec4 white_bg;
+    vec4 black_bg;
+
     Font* font;
 
     bool inverted_board;
@@ -61,6 +58,8 @@ typedef struct {
 
     r64 timer;
     r64 clock;
+
+    Chess_Config config;
 } AppInterface;
 
 u32
@@ -182,6 +181,16 @@ interface_init()
     AppInterface* result = calloc(1, sizeof(AppInterface));
 	stbi_set_flip_vertically_on_load(true);
 
+    s32 config_file_length = 0;
+    char* config_file_data = os_file_read("config.txt", &config_file_length, malloc);
+    if(parse_config(config_file_data, &result->config) == 0) {
+        result->white_bg = result->config.white_bg;
+        result->black_bg = result->config.black_bg;
+    } else {
+        result->config.server = "localhost";
+        result->config.port = 9999;
+    }
+
 	result->white_king   = load_image("res/WK.png");
     result->white_queen  = load_image("res/WQ.png");
     result->white_bishop = load_image("res/WB.png");
@@ -206,7 +215,7 @@ interface_init()
         network_create_udp_socket(&connection, true);
 
         struct sockaddr_in server_address = { 0 };
-        network_sockaddr_fill(&server_address, SERVER_PORT, SERVER_IP);
+        network_sockaddr_fill(&server_address, result->config.port, result->config.server);
 
         result->connection = connection;
         result->server_info = server_address;
@@ -414,9 +423,9 @@ interface_render_clock(AppInterface* chess, Hobatch_Context* ctx, Game* game)
     // background
     if(!chess->inverted_board) {
         batch_render_quad_color_solid(ctx, (vec3) { chess->window_height, chess->window_height / 2.0f, 0 }, chess->window_width - chess->window_height, chess->window_height / 2.0f, (vec4){0.3f, 0.33f, 0.3f, 1.0f});
-        batch_render_quad_color_solid(ctx, (vec3) { chess->window_height, 0, 0 }, chess->window_width - chess->window_height, chess->window_height / 2.0f, gm_vec4_subtract(white_bg, (vec4){0.3f, 0.3f, 0.3f, 0.0f}));
+        batch_render_quad_color_solid(ctx, (vec3) { chess->window_height, 0, 0 }, chess->window_width - chess->window_height, chess->window_height / 2.0f, gm_vec4_subtract(chess->white_bg, (vec4){0.3f, 0.3f, 0.3f, 0.0f}));
     } else {
-        batch_render_quad_color_solid(ctx, (vec3) { chess->window_height, chess->window_height / 2.0f, 0 }, chess->window_width - chess->window_height, chess->window_height / 2.0f, gm_vec4_subtract(white_bg, (vec4){0.3f, 0.3f, 0.3f, 0.0f}));
+        batch_render_quad_color_solid(ctx, (vec3) { chess->window_height, chess->window_height / 2.0f, 0 }, chess->window_width - chess->window_height, chess->window_height / 2.0f, gm_vec4_subtract(chess->white_bg, (vec4){0.3f, 0.3f, 0.3f, 0.0f}));
         batch_render_quad_color_solid(ctx, (vec3) { chess->window_height, 0, 0 }, chess->window_width - chess->window_height, chess->window_height / 2.0f, (vec4){0.3f, 0.33f, 0.3f, 1.0f});
     }
 
@@ -478,8 +487,8 @@ interface_render(Chess_Interface interf, Hobatch_Context* ctx, Game* game)
         for(int x = 0; x < 8; ++x)
         {
             
-			vec4 color = (((x + y) % 2) == 0) ? black_bg : white_bg;
-            vec4 selcolor = (((x + y) % 2) == 0) ? gm_vec4_add(color, (vec4) { 0.2f, 0.2f, 0.2f, 0.0f }) : gm_vec4_add(gm_vec4_scalar_product(0.2f, black_bg), gm_vec4_subtract(color, (vec4) { 0.2f, 0.2f, 0.2f, 0.0f }));
+			vec4 color = (((x + y) % 2) == 0) ? chess->black_bg : chess->white_bg;
+            vec4 selcolor = (((x + y) % 2) == 0) ? gm_vec4_add(color, (vec4) { 0.2f, 0.2f, 0.2f, 0.0f }) : gm_vec4_add(gm_vec4_scalar_product(0.2f, chess->black_bg), gm_vec4_subtract(color, (vec4) { 0.2f, 0.2f, 0.2f, 0.0f }));
 
 			if(input->pressed && input->start_x == x && input->start_y == y) {
                 color = selcolor;
