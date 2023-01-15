@@ -98,8 +98,8 @@ flag_diag_attack(Chess_Piece piece, s32 distance, bool* searching)
         case CHESS_WHITE_PAWN: {
             if (distance == 0) {
                 result |= WHITE_ATTACK;
-                *searching = false;
             }
+            *searching = false;
         } break;
         case CHESS_BLACK_QUEEN:
         case CHESS_BLACK_BISHOP: {
@@ -110,8 +110,8 @@ flag_diag_attack(Chess_Piece piece, s32 distance, bool* searching)
         case CHESS_BLACK_PAWN: {
             if (distance == 0) {
                 result |= BLACK_ATTACK;
-                *searching = false;
             }
+            *searching = false;
         } break;
         case CHESS_NONE: break;
         default: {
@@ -134,8 +134,8 @@ flag_horiz_attack(Chess_Piece piece, s32 distance, bool* searching)
         case CHESS_WHITE_KING: {
             if (distance == 0) {
                 result |= WHITE_ATTACK;
-                *searching = false;
             }
+            *searching = false;
         } break;
         case CHESS_BLACK_ROOK:
         case CHESS_BLACK_QUEEN: {
@@ -145,8 +145,8 @@ flag_horiz_attack(Chess_Piece piece, s32 distance, bool* searching)
         case CHESS_BLACK_KING: {
             if (distance == 0) {
                 result |= BLACK_ATTACK;
-                *searching = false;
             }
+            *searching = false;
         } break;
         case CHESS_NONE: break;
         default: {

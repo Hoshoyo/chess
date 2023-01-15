@@ -1,6 +1,7 @@
 #include "interface.h"
 #include "input.h"
 #include "renderer.h"
+#include "gm.h"
 #include <stb_image.h>
 #include <float.h>
 
@@ -260,20 +261,18 @@ interface_render(Chess_Interface interf, Hobatch_Context* ctx, Game* game)
     {
         for(int x = 0; x < 8; ++x)
         {
-			vec4 color;
-            if(chess->inverted_board)
-                color = (((x + y) % 2) != 0) ? black_bg : white_bg;
-            else
-                color = (((x + y) % 2) == 0) ? black_bg : white_bg;
+            
+			vec4 color = (((x + y) % 2) == 0) ? black_bg : white_bg;
+            vec4 selcolor = (((x + y) % 2) == 0) ? gm_vec4_add(color, (vec4) { 0.2f, 0.2f, 0.2f, 0.0f }) : gm_vec4_add(gm_vec4_scalar_product(0.2f, black_bg), gm_vec4_subtract(color, (vec4) { 0.2f, 0.2f, 0.2f, 0.0f }));
 
 			if(input->pressed && input->start_x == x && input->start_y == y) {
-				color = color_red;
+                color = selcolor;
 			}
 			if(input->pressed && input->at_x == x && input->at_y == y) {
-				color = color_blue;
+                color = selcolor;
 			}
 			if(input->selected && input->start_x == x && input->start_y == y) {
-				color = color_yellow;
+                color = gm_vec4_add(color, (vec4) { 0.3f, 0.2f, 0.2f, 0.0f });
 			}
 
             batch_render_quad_color_solid(ctx, (vec3){w * x, h * y, 0}, w, h, color);
