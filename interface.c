@@ -268,19 +268,29 @@ interface_render_clock(AppInterface* chess, Hobatch_Context* ctx, Game* game)
     }
 
     // background
-    batch_render_quad_color_solid(ctx, (vec3) { chess->window_height, chess->window_height / 2.0f, 0 }, chess->window_width - chess->window_height, chess->window_height / 2.0f, (vec4){0.3f, 0.33f, 0.3f, 1.0f});
-    batch_render_quad_color_solid(ctx, (vec3) { chess->window_height, 0, 0 }, chess->window_width - chess->window_height, chess->window_height / 2.0f, gm_vec4_subtract(white_bg, (vec4){0.3f, 0.3f, 0.3f, 0.0f}));
+    if(!chess->inverted_board) {
+        batch_render_quad_color_solid(ctx, (vec3) { chess->window_height, chess->window_height / 2.0f, 0 }, chess->window_width - chess->window_height, chess->window_height / 2.0f, (vec4){0.3f, 0.33f, 0.3f, 1.0f});
+        batch_render_quad_color_solid(ctx, (vec3) { chess->window_height, 0, 0 }, chess->window_width - chess->window_height, chess->window_height / 2.0f, gm_vec4_subtract(white_bg, (vec4){0.3f, 0.3f, 0.3f, 0.0f}));
+    } else {
+        batch_render_quad_color_solid(ctx, (vec3) { chess->window_height, chess->window_height / 2.0f, 0 }, chess->window_width - chess->window_height, chess->window_height / 2.0f, gm_vec4_subtract(white_bg, (vec4){0.3f, 0.3f, 0.3f, 0.0f}));
+        batch_render_quad_color_solid(ctx, (vec3) { chess->window_height, 0, 0 }, chess->window_width - chess->window_height, chess->window_height / 2.0f, (vec4){0.3f, 0.33f, 0.3f, 1.0f});
+    }
 
     // black timer
-    //const char* text = "10:00";
     char text[32] = {0};
-    timer_to_text((char*)text, game->black_time_ms);
+    if(!chess->inverted_board)
+        timer_to_text((char*)text, game->black_time_ms);
+    else
+        timer_to_text((char*)text, game->white_time_ms);
     vec4 btext_pos = batch_pre_render_text(ctx, &chess->font->data, text, strlen(text), 0, (vec2) { 0, 0 }, 0, 0);
     r32 ff = (chess->window_width - chess->window_height - btext_pos.z) / 2.0f;
     batch_render_text(ctx, &chess->font->data, text, strlen(text), 0, (vec2) { chess->window_width - btext_pos.z - ff, chess->window_height / 2.0f + 20.0f }, (vec4) { 0, 0, FLT_MAX, FLT_MAX }, (vec4) { 1, 1, 1, 1 }, 0, 0);
 
     // white timer
-    timer_to_text((char*)text, game->white_time_ms);
+    if(!chess->inverted_board)
+        timer_to_text((char*)text, game->white_time_ms);
+    else
+        timer_to_text((char*)text, game->black_time_ms);
     vec4 wtext_pos = batch_pre_render_text(ctx, &chess->font->data, text, strlen(text), 0, (vec2) { 0, 0 }, 0, 0);
     ff = (chess->window_width - chess->window_height - wtext_pos.z) / 2.0f;
     batch_render_text(ctx, &chess->font->data, text, strlen(text), 0, (vec2) { chess->window_width - wtext_pos.z - ff, chess->window_height / 2.0f - 20.0f - wtext_pos.w }, (vec4) { 0, 0, FLT_MAX, FLT_MAX }, (vec4) { 1, 1, 1, 1 }, 0, 0);
