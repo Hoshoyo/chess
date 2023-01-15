@@ -45,6 +45,7 @@ typedef struct {
 } UDP_Packet;
 
 typedef enum {
+  NETWORK_TIMEOUT           = -10,
   NETWORK_FORCED_CLOSED     = -9,
   NETWORK_UNREACHABLE       = -8,
   NETWORK_INVALID_ADDRESS   = -7,
