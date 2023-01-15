@@ -694,6 +694,8 @@ game_move(Game* game, s32 from_x, s32 from_y, s32 to_x, s32 to_y, Chess_Piece pr
         else
             game->black_time_ms += game->increment_ms;
 
+        game->move_count++;
+
         // Pass the turn
         game->white_turn = !game->white_turn;
 

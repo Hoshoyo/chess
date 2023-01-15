@@ -4,6 +4,11 @@
 #include "gm.h"
 #include <stb_image.h>
 #include <float.h>
+#include "network/network.h"
+#include "network/messages.h"
+
+#define SERVER_PORT 9999
+#define SERVER_IP "localhost"
 
 const vec4 black_bg = { 118.0f / 255.0f, 150.0f / 255.0f , 86.0f / 255.0f, 1.0f };
 const vec4 white_bg = { 238.0f / 255.0f, 238.0f / 255.0f , 210.0f / 255.0f, 1.0f };
@@ -49,7 +54,13 @@ typedef struct {
 
     bool inverted_board;
 
-    Game last_turn;
+    UDP_Connection connection;
+    struct sockaddr_in server_info;
+
+    s64 player_id;
+
+    r64 timer;
+    r64 clock;
 } AppInterface;
 
 u32
@@ -60,6 +71,109 @@ load_image(const char* filename)
 	u32 result = batch_texture_create_from_data(data, ix, iy, GL_LINEAR);
     stbi_image_free(data);
     return result;
+}
+
+void
+interface_send_update(AppInterface* interf, u8* data, s32 size_bytes)
+{
+    s32 update_msg_length = size_bytes + sizeof(Client_Message);
+    Client_Message* update_msg = (Client_Message*)calloc(1, update_msg_length);
+    update_msg->type = CLIENT_MESSAGE_UPDATE;
+    update_msg->update.index = 0;
+    update_msg->update.player_id = interf->player_id;
+    update_msg->update.version = 0;
+    update_msg->update.size_bytes = size_bytes;
+    memcpy(update_msg->data, data, update_msg->update.size_bytes);
+
+    network_send_udp_packet(&interf->connection, &interf->server_info, (const char*)update_msg, update_msg_length);
+    free(update_msg);
+}
+
+void
+interface_connect_to_server(AppInterface* interf)
+{
+	Client_Message connect_msg = { .type = CLIENT_MESSAGE_CONNECTION };
+	network_send_udp_packet(&interf->connection, &interf->server_info, (const char*)&connect_msg, sizeof(connect_msg));
+
+	printf("Connect to server\n");
+}
+
+void
+game_disconnect_from_server(AppInterface* game)
+{
+	Client_Message connect_msg = { .type = CLIENT_MESSAGE_DISCONNECT };
+	network_send_udp_packet(&game->connection, &game->server_info, (const char*)&connect_msg, sizeof(connect_msg));
+
+	printf("Disconnect from server\n");
+}
+
+void
+game_process_connection(AppInterface* game, Server_Message* msg)
+{
+	game->player_id = msg->connect.id;
+	printf("Connected with player id: %lld\n", game->player_id);
+}
+
+void
+game_process_disconnect(AppInterface* game, Server_Message* msg)
+{
+	s64 id = msg->connect.id;
+	printf("Player disconnected id: %lld\n", id);
+}
+
+void
+game_process_new_player(AppInterface* interf, Game* game, Server_Message* msg)
+{
+	printf("New player with id: %lld\n", msg->new_player.id);
+    if(msg->new_player.id != interf->player_id && game->move_count > 0)
+        interface_send_update(interf, (u8*)game, sizeof(Game));
+}
+
+void
+game_process_update(AppInterface* chess, Game* game, Server_Message* msg)
+{
+	s64 id = msg->update.player_id;
+	s32 index = msg->update.index;
+
+    printf("Received update from %lld\n", id);
+    Game* received_game = (Game*)msg->data;
+    memcpy(game->board, received_game->board, sizeof(received_game->board));
+
+    game->winner = received_game->winner;
+    game->white_turn = received_game->white_turn;
+    game->white_long_castle_valid = received_game->white_long_castle_valid;
+    game->white_short_castle_valid = received_game->white_short_castle_valid;
+    game->black_long_castle_valid = received_game->black_long_castle_valid;
+    game->black_short_castle_valid = received_game->black_short_castle_valid;
+    game->last_move = received_game->last_move;
+    game->move_draw_count = received_game->move_draw_count;
+
+    game->white_time_ms = received_game->white_time_ms;
+    game->black_time_ms = received_game->black_time_ms;
+    
+    game->increment_ms = received_game->increment_ms;
+
+    game->move_count = received_game->move_count;
+
+    game->clock = os_time_us() / 1000.0;
+}
+
+void
+game_process_network(AppInterface* chess, Game* game)
+{
+	UDP_Packet packet = { 0 };
+	while (network_receive_udp_packets(&chess->connection, &packet) > 0)
+	{
+		Server_Message* msg = (Server_Message*)packet.data;
+		switch (msg->type)
+		{
+			case SERVER_MESSAGE_CONNECTION: game_process_connection(chess, msg); break;
+			case SERVER_MESSAGE_NEW_PLAYER: game_process_new_player(chess, game, msg); break;
+			case SERVER_MESSAGE_UPDATE:     game_process_update(chess, game, msg); break;
+			case SERVER_MESSAGE_DISCONNECT: game_process_disconnect(chess, msg); break;
+			default: break;
+		}
+	}
 }
 
 Chess_Interface
@@ -86,7 +200,33 @@ interface_init()
 
     result->font = renderer_font_new(64, "C:/Windows/Fonts/arial.ttf");
 
+	if (network_init(stdout) != -1)
+	{
+        UDP_Connection connection = { 0 };
+        network_create_udp_socket(&connection, true);
+
+        struct sockaddr_in server_address = { 0 };
+        network_sockaddr_fill(&server_address, SERVER_PORT, SERVER_IP);
+
+        result->connection = connection;
+        result->server_info = server_address;
+
+        interface_connect_to_server(result);
+
+        result->clock = os_time_us() / 1000.0;
+        result->timer = 0;
+
+        printf("Network initialized\n");
+    }
+
     return result;
+}
+
+void
+interface_destroy(Chess_Interface interf)
+{
+    AppInterface* chess = (AppInterface*)interf;
+    network_close_connection(&chess->connection);
 }
 
 void
@@ -180,13 +320,17 @@ interface_input(Chess_Interface interf, Game* game)
 				if(input->pressed && xx == input->start_x && yy == input->start_y) {
 					input->selected = !was_selected;
                     if (was_selected)
-                        game_move(game, get_x(input->selected_x, chess->inverted_board), get_y(input->selected_y, chess->inverted_board), get_x(xx, chess->inverted_board), get_y(yy, chess->inverted_board), piece_from_scroll(input, get_y(yy, chess->inverted_board) == 7), false);
+                        if(game_move(game, get_x(input->selected_x, chess->inverted_board), get_y(input->selected_y, chess->inverted_board), get_x(xx, chess->inverted_board), get_y(yy, chess->inverted_board), piece_from_scroll(input, get_y(yy, chess->inverted_board) == 7), false)) {
+                            interface_send_update(chess, (u8*)game, sizeof(Game));
+                        }
 					if (input->selected) {
 						input->selected_x = xx;
 						input->selected_y = yy;
 					}
 				} else {
-                    game_move(game, get_x(input->start_x, chess->inverted_board), get_y(input->start_y, chess->inverted_board), get_x(xx, chess->inverted_board), get_y(yy, chess->inverted_board), piece_from_scroll(input, get_y(yy, chess->inverted_board) == 7), false);
+                    if(game_move(game, get_x(input->start_x, chess->inverted_board), get_y(input->start_y, chess->inverted_board), get_x(xx, chess->inverted_board), get_y(yy, chess->inverted_board), piece_from_scroll(input, get_y(yy, chess->inverted_board) == 7), false)) {
+                        interface_send_update(chess, (u8*)game, sizeof(Game));
+                    }
                 }
 				input->pressed = false;
                 input->scroll_up_count = 0;
@@ -208,9 +352,9 @@ interface_input(Chess_Interface interf, Game* game)
         } else if(ev.type == HINP_EVENT_KEYBOARD) {
             if(ev.keyboard.action == 1) {
                 switch (ev.keyboard.key) {
-                    case 'R': game_new(game); break;
+                    case 'R': game_new(game); interface_send_update(chess, (u8*)game, sizeof(Game)); break;
                     case 'T': chess->inverted_board = !chess->inverted_board; break;
-                    case VK_LEFT: game_undo(game);
+                    case VK_LEFT: game_undo(game); interface_send_update(chess, (u8*)game, sizeof(Game)); break;
                     default: break;
                 }
             }
@@ -301,6 +445,18 @@ interface_render(Chess_Interface interf, Hobatch_Context* ctx, Game* game)
 {
     AppInterface* chess = (AppInterface*)interf;
 	AppInput* input = &chess->input;
+
+    game_process_network(chess, game);
+
+    if(chess->timer >= 1000.0) {
+        chess->timer = 0;
+        Client_Message alive_msg = { .type = CLIENT_MESSAGE_ALIVE };
+		network_send_udp_packet(&chess->connection, &chess->server_info, (const char*)&alive_msg, sizeof(alive_msg));
+    } else {
+        r64 now = (os_time_us() / 1000.0);
+        chess->timer += (now - chess->clock);
+        chess->clock = now;
+    }
 
     r32 w = chess->window_height / 8.0f;
     r32 h = chess->window_height / 8.0f;

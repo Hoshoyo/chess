@@ -58,6 +58,7 @@ typedef struct {
     bool black_short_castle_valid;
     Chess_Move last_move;
     s32 move_draw_count;
+    s32 move_count;
 
     r64 white_time_ms;
     r64 black_time_ms;

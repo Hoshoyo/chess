@@ -169,6 +169,8 @@ int main(int argc, char** argv)
 
 		hinp_clear();
 	}
+
+	interface_destroy(interf);
 	ExitProcess(0);
 }
 
