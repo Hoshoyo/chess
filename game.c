@@ -563,9 +563,6 @@ is_valid_move(Game* game, s32 from_x, s32 from_y, s32 to_x, s32 to_y, Chess_Piec
 bool
 game_move(Game* game, s32 from_x, s32 from_y, s32 to_x, s32 to_y, Chess_Piece promotion_choice, bool simulate)
 {
-    if(game->clock == 0)
-        game->clock = os_time_us() / 1000.0;
-
     // Copy the state so we can simulate
     memcpy(game->sim_board, game->board, sizeof(game->board));
 

@@ -330,6 +330,9 @@ interface_input(Chess_Interface interf, Game* game)
 					input->selected = !was_selected;
                     if (was_selected)
                         if(game_move(game, get_x(input->selected_x, chess->inverted_board), get_y(input->selected_y, chess->inverted_board), get_x(xx, chess->inverted_board), get_y(yy, chess->inverted_board), piece_from_scroll(input, get_y(yy, chess->inverted_board) == 7), false)) {
+                            if (game->clock == 0) {
+                                game->clock = os_time_us() / 1000.0;
+                            }
                             interface_send_update(chess, (u8*)game, sizeof(Game));
                         }
 					if (input->selected) {
@@ -338,6 +341,9 @@ interface_input(Chess_Interface interf, Game* game)
 					}
 				} else {
                     if(game_move(game, get_x(input->start_x, chess->inverted_board), get_y(input->start_y, chess->inverted_board), get_x(xx, chess->inverted_board), get_y(yy, chess->inverted_board), piece_from_scroll(input, get_y(yy, chess->inverted_board) == 7), false)) {
+                        if (game->clock == 0) {
+                            game->clock = os_time_us() / 1000.0;
+                        }
                         interface_send_update(chess, (u8*)game, sizeof(Game));
                     }
                 }
@@ -363,6 +369,8 @@ interface_input(Chess_Interface interf, Game* game)
                 switch (ev.keyboard.key) {
                     case 'R': game_new(game); interface_send_update(chess, (u8*)game, sizeof(Game)); break;
                     case 'T': chess->inverted_board = !chess->inverted_board; break;
+                    case VK_DOWN: game->white_time_ms -= (1000.0 * 60); game->black_time_ms -= (1000.0 * 60); break;
+                    case VK_UP: game->white_time_ms += (1000.0 * 60); game->black_time_ms += (1000.0 * 60); break;
                     case VK_LEFT: game_undo(game); interface_send_update(chess, (u8*)game, sizeof(Game)); break;
                     default: break;
                 }
