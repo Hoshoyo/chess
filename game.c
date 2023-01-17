@@ -82,6 +82,7 @@ game_new(Game* game)
     game->increment_ms = 1000;
 
     game->clock = 0;
+    game->im_white = false;
 
     if(game->history) {
         array_free(((Game_History*)game->history)->game);

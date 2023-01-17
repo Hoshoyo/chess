@@ -59,6 +59,8 @@ typedef struct {
     r64 timer;
     r64 clock;
 
+    bool disable_both_move;
+
     Chess_Config config;
 } AppInterface;
 
@@ -154,7 +156,17 @@ game_process_update(AppInterface* chess, Game* game, Server_Message* msg)
 
     game->move_count = received_game->move_count;
 
-    game->clock = os_time_us() / 1000.0;
+    if (received_game->clock == 0) {
+        printf("received clock 0\n");
+        game->clock = 0;
+    } else {
+        game->clock = os_time_us() / 1000.0;
+    }
+
+    if (received_game->im_white) {
+        game->im_white = false;
+    }
+
 }
 
 void
@@ -206,6 +218,8 @@ interface_init()
     result->black_pawn   = load_image("res/BP.png");
 
     result->inverted_board = false;
+
+    result->disable_both_move = false;
 
     result->font = renderer_font_new(64, "C:/Windows/Fonts/arial.ttf");
 
@@ -326,12 +340,15 @@ interface_input(Chess_Interface interf, Game* game)
 			} else {
 				bool was_selected = (input->selected);
 				input->selected = false;
+                bool my_turn = (game->clock == 0) || (game->im_white && game->white_turn) || (!game->im_white && !game->white_turn);
+
 				if(input->pressed && xx == input->start_x && yy == input->start_y) {
 					input->selected = !was_selected;
                     if (was_selected)
-                        if(game_move(game, get_x(input->selected_x, chess->inverted_board), get_y(input->selected_y, chess->inverted_board), get_x(xx, chess->inverted_board), get_y(yy, chess->inverted_board), piece_from_scroll(input, get_y(yy, chess->inverted_board) == 7), false)) {
+                        if((my_turn || !chess->disable_both_move) && game_move(game, get_x(input->selected_x, chess->inverted_board), get_y(input->selected_y, chess->inverted_board), get_x(xx, chess->inverted_board), get_y(yy, chess->inverted_board), piece_from_scroll(input, get_y(yy, chess->inverted_board) == 7), false)) {
                             if (game->clock == 0) {
                                 game->clock = os_time_us() / 1000.0;
+                                game->im_white = true;
                             }
                             interface_send_update(chess, (u8*)game, sizeof(Game));
                         }
@@ -340,9 +357,10 @@ interface_input(Chess_Interface interf, Game* game)
 						input->selected_y = yy;
 					}
 				} else {
-                    if(game_move(game, get_x(input->start_x, chess->inverted_board), get_y(input->start_y, chess->inverted_board), get_x(xx, chess->inverted_board), get_y(yy, chess->inverted_board), piece_from_scroll(input, get_y(yy, chess->inverted_board) == 7), false)) {
+                    if((my_turn || !chess->disable_both_move) && game_move(game, get_x(input->start_x, chess->inverted_board), get_y(input->start_y, chess->inverted_board), get_x(xx, chess->inverted_board), get_y(yy, chess->inverted_board), piece_from_scroll(input, get_y(yy, chess->inverted_board) == 7), false)) {
                         if (game->clock == 0) {
                             game->clock = os_time_us() / 1000.0;
+                            game->im_white = true;
                         }
                         interface_send_update(chess, (u8*)game, sizeof(Game));
                     }
@@ -369,6 +387,7 @@ interface_input(Chess_Interface interf, Game* game)
                 switch (ev.keyboard.key) {
                     case 'R': game_new(game); interface_send_update(chess, (u8*)game, sizeof(Game)); break;
                     case 'T': chess->inverted_board = !chess->inverted_board; break;
+                    case 'D': chess->disable_both_move = !chess->disable_both_move;
                     case VK_DOWN: game->white_time_ms -= (1000.0 * 60); game->black_time_ms -= (1000.0 * 60); break;
                     case VK_UP: game->white_time_ms += (1000.0 * 60); game->black_time_ms += (1000.0 * 60); break;
                     case VK_LEFT: game_undo(game); interface_send_update(chess, (u8*)game, sizeof(Game)); break;

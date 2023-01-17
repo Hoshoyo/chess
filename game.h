@@ -67,6 +67,8 @@ typedef struct {
     r64 clock;
 
     struct Game_History* history;
+
+    bool im_white;
 } Game;
 
 typedef struct {
