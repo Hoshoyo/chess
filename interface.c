@@ -228,6 +228,7 @@ interface_init()
         UDP_Connection connection = { 0 };
         network_create_udp_socket(&connection, true);
 
+        printf("Trying to perform DNS on %s\n", result->config.server);
         struct sockaddr_in server_address = { 0 };
         network_sockaddr_fill(&server_address, result->config.port, result->config.server);
 

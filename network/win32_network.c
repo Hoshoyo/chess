@@ -319,12 +319,46 @@ network_dns_ipv6(const char* name_address, ipv6_t* net_ipv6)
   return 0;
 }
 
+static int
+is_number(char c) {
+  return (c >= '0') && (c <= '9');
+}
+
 int
 network_sockaddr_fill(struct sockaddr_in* out_addr, int port, const char* ip)
 {
     memset(out_addr, 0, sizeof(*out_addr));
 
     int stat = network_dns_info_ipv4(ip, out_addr);
+    if(stat == -1) {
+      const char* at = ip;
+      out_addr->sin_addr.S_un.S_addr = 0;
+
+      for (int k = 0; k < 4; ++k) {
+          if(is_number(*at)) {            
+            int i = 0;
+            while(*at) {
+              if (is_number(*at)) {
+                i *= 10;
+                i += (*at - '0');
+              } else if(*at == '.') {
+                  at++;
+                  break;
+              } else {
+                  return -1;
+              }
+              at++;
+            }
+        
+            switch(k) {
+              case 0: out_addr->sin_addr.S_un.S_un_b.s_b1 += i; break;
+              case 1: out_addr->sin_addr.S_un.S_un_b.s_b2 += i; break;
+              case 2: out_addr->sin_addr.S_un.S_un_b.s_b3 += i; break;
+              case 3: out_addr->sin_addr.S_un.S_un_b.s_b4 += i; break;
+            }
+          }
+      }
+    }
 
     out_addr->sin_family = AF_INET;
     out_addr->sin_port = htons(port);
