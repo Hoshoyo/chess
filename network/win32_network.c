@@ -328,11 +328,8 @@ int
 network_sockaddr_fill(struct sockaddr_in* out_addr, int port, const char* ip)
 {
     memset(out_addr, 0, sizeof(*out_addr));
-
-    /*
     int stat = network_dns_info_ipv4(ip, out_addr);
     if(stat == -1) 
-    */
     {
       const char* at = ip;
       out_addr->sin_addr.S_un.S_addr = 0;
@@ -362,7 +359,6 @@ network_sockaddr_fill(struct sockaddr_in* out_addr, int port, const char* ip)
           }
       }
     }
-
     printf("Connecting to %d.%d.%d.%d:%d\n", 
       out_addr->sin_addr.S_un.S_un_b.s_b1,
       out_addr->sin_addr.S_un.S_un_b.s_b2,

@@ -1,4 +1,4 @@
-server	  = 167.71.171.61
+server	  = localhost
 port      = 9999
 black_background = { 0.4627, 0.5882, 0.3372, 1.0 }
 white_background = { 0.9333, 0.9333, 0.8235, 1.0 }

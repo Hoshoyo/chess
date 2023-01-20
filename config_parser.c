@@ -297,7 +297,7 @@ static const char*
 parse_config_filepath(const char* at, char** out, bool* valid)
 {
 	const char* start = at;
-	while(!is_space(*at) && *at != 0)
+	while(!is_space(*at) && *at != '\n' && *at != 0)
 	{
 		at++;
 	}
