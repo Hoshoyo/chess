@@ -3,6 +3,7 @@
 #include "renderer.h"
 #include "gm.h"
 #include <stb_image.h>
+#include <light_array.h>
 #include <float.h>
 #include "network/network.h"
 #include "network/messages.h"
@@ -43,6 +44,8 @@ typedef struct {
     u32 black_rook;
     u32 black_knight;
     u32 black_pawn;
+
+    u32 select_dot;
 
     vec4 white_bg;
     vec4 black_bg;
@@ -216,6 +219,8 @@ interface_init()
     result->black_rook   = load_image("res/BR.png");
     result->black_knight = load_image("res/BN.png");
     result->black_pawn   = load_image("res/BP.png");
+
+    result->select_dot   = load_image("res/Select.png");
 
     result->inverted_board = false;
 
@@ -510,11 +515,11 @@ interface_render(Chess_Interface interf, Hobatch_Context* ctx, Game* game)
         }
     }
 
+    // Render board
     for(int y = 0; y < 8; ++y)
     {
         for(int x = 0; x < 8; ++x)
         {
-            
 			vec4 color = (((x + y) % 2) == 0) ? chess->black_bg : chess->white_bg;
             vec4 selcolor = (((x + y) % 2) == 0) ? gm_vec4_add(color, (vec4) { 0.2f, 0.2f, 0.2f, 0.0f }) : gm_vec4_add(gm_vec4_scalar_product(0.2f, chess->black_bg), gm_vec4_subtract(color, (vec4) { 0.2f, 0.2f, 0.2f, 0.0f }));
 
@@ -528,6 +533,11 @@ interface_render(Chess_Interface interf, Hobatch_Context* ctx, Game* game)
                 color = gm_vec4_add(color, (vec4) { 0.3f, 0.2f, 0.2f, 0.0f });
 			}
 
+            if(!game->last_move.start && game->last_move.from_x == x && game->last_move.from_y == y)
+                color = gm_vec4_add(gm_vec4_subtract(color, (vec4){0.2f, 0.2f, 0.2f, 0.0f}), (vec4){0.2f, 0.2f, 0.1f, 0.0f});
+            if(!game->last_move.start && game->last_move.to_x == x && game->last_move.to_y == y)
+                color = gm_vec4_add(gm_vec4_subtract(color, (vec4){0.2f, 0.2f, 0.2f, 0.0f}), (vec4){0.3f, 0.3f, 0.1f, 0.0f});
+
             batch_render_quad_color_solid(ctx, (vec3){w * x, h * y, 0}, w, h, color);
 
             if(!(piece_selected != CHESS_NONE && input->start_x == x && input->start_y == y))
@@ -538,6 +548,18 @@ interface_render(Chess_Interface interf, Hobatch_Context* ctx, Game* game)
                     batch_render_quad_textured(ctx, (vec3){w * x, h * y, 0}, w, h, texture);
             }
         }
+    }
+
+    // Render possible move preview
+    if (piece_selected != CHESS_NONE || (input->selected)) {
+        Gen_Moves moves = {0};
+        s32 count_moves = generate_all_valid_moves_from_square(game, &moves, input->start_x, input->start_y);
+        if(count_moves > 0) {
+            for(s32 i = 0; i < count_moves; ++i) {                
+                batch_render_quad_textured(ctx, (vec3){w * moves.move[i].to_x, h * moves.move[i].to_y, 0}, w, h, chess->select_dot);
+            }
+        }
+        array_free(moves.move);
     }
 
     interface_render_clock(chess, ctx, game);

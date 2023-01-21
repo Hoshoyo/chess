@@ -4,10 +4,6 @@
 #define MAX(A, B) (((A) > (B)) ? (A) : (B))
 #define MIN(A, B) (((A) < (B)) ? (A) : (B))
 
-typedef struct {
-    Chess_Move* move;
-} Gen_Moves;
-
 s32 generate_possible_moves(Game* game, Gen_Moves* moves);
 bool check_sufficient_material(Game* game);
 bool check_repetition(Game* game);
@@ -766,8 +762,8 @@ generate_pawn_moves(Game* game, s32 x, s32 y, Gen_Moves* moves)
 
 	// advance once
 	{
-		mv.to_y = y;
-		mv.to_x = y + move_direction;
+		mv.to_y = y + move_direction;
+		mv.to_x = x;
 
 		// advance once promote
 		if (y == seventh_rank) {
@@ -1097,6 +1093,49 @@ generate_possible_moves(Game* game, Gen_Moves* moves)
         }
     }
     return array_length(moves->move);
+}
+
+s32 
+generate_possible_moves_from_square(Game* game, Gen_Moves* moves, s32 x, s32 y) 
+{
+    moves->move = array_new(Chess_Move);
+
+    Chess_Piece p = game->board[y][x];
+    if (game->white_turn && is_black(p))
+        return 0;
+    if (!game->white_turn && is_white(p))
+        return 0;
+    switch (p) 
+    {
+        case CHESS_BLACK_PAWN:
+        case CHESS_WHITE_PAWN:		generate_pawn_moves(game, x, y, moves); break;
+        case CHESS_BLACK_BISHOP:
+        case CHESS_WHITE_BISHOP:	generate_bishop_moves(game, x, y, moves); break;
+        case CHESS_BLACK_KNIGHT:
+        case CHESS_WHITE_KNIGHT:	generate_knight_moves(game, x, y, moves); break;
+        case CHESS_BLACK_ROOK:
+        case CHESS_WHITE_ROOK:		generate_rook_moves(game, x, y, moves); break;
+        case CHESS_BLACK_QUEEN:
+        case CHESS_WHITE_QUEEN:		generate_queen_moves(game, x, y, moves); break;
+        case CHESS_BLACK_KING:
+        case CHESS_WHITE_KING:		generate_king_moves(game, x, y, moves); break;
+        default: break;
+    }
+    return array_length(moves->move);
+}
+
+s32
+generate_all_valid_moves_from_square(Game* game, Gen_Moves* moves, s32 x, s32 y)
+{
+    generate_possible_moves_from_square(game, moves, x, y);
+
+    s32 mv_count = 0;
+    for(int i = 0; i < array_length(moves->move); ++i) {
+        if(game_move(game, moves->move[i].from_x, moves->move[i].from_y, moves->move[i].to_x, moves->move[i].to_y, moves->move[i].promotion_piece, true)) {
+            mv_count++;
+        }
+    }
+    return mv_count;
 }
 
 bool
