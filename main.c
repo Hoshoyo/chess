@@ -123,6 +123,8 @@ window_new_opengl(Window* window, WNDPROC window_callback, const char* title, in
 	glViewport(0, 0, window->width, window->height);
 }
 
+s32 parse_fen(s8* fen, Game* game);
+
 typedef BOOL WINAPI wgl_swap_interval_ext(int interval);
 #if 0
 int CALLBACK
@@ -143,6 +145,11 @@ int main(int argc, char** argv)
 	Chess_Interface interf = interface_init();
 	Game game = {0};
 	game_new(&game);
+
+	if(argc > 1) {
+		//char* fen = "8/4k3/4pNp1/p2pP1n1/PP6/2K4r/4R3/8 w - - 1 43";
+		parse_fen(argv[1], &game);
+	}
 
     bool running = true;
 	while (running)

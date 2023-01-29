@@ -1137,9 +1137,11 @@ generate_all_valid_moves_from_square(Game* game, Gen_Moves* moves, s32 x, s32 y)
     generate_possible_moves_from_square(game, moves, x, y);
 
     s32 mv_count = 0;
-    for(int i = 0; i < array_length(moves->move); ++i) {
+    for(int i = array_length(moves->move)-1; i >= 0; --i) {
         if(game_move(game, moves->move[i].from_x, moves->move[i].from_y, moves->move[i].to_x, moves->move[i].to_y, moves->move[i].promotion_piece, true, 0)) {
             mv_count++;
+        } else {
+            array_remove_ordered(moves->move, i);
         }
     }
     return mv_count;

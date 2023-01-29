@@ -3,6 +3,15 @@
 The project is just a simple chess interface in OpenGL with UDP server support.
 The client is Windows only, the server has support for Linux and Windows.
 
+## Loading Fen
+
+A fen string can be specified through as the first command line argument within double quotes.
+If nothing is specified, the interface starts with the default position.
+
+```bash
+chess.exe "rnbqkbnr/ppp2ppp/3p4/3Pp3/8/8/PPP1PPPP/RNBQKBNR w KQkq e6 0 3"
+```
+
 ## Compile client (Windows only)
 
 Visual Studio is necessary to compile the client.
