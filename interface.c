@@ -7,6 +7,7 @@
 #include <float.h>
 #include "network/network.h"
 #include "network/messages.h"
+#include "miniaudio.h"
 
 typedef struct {
 	bool pressed;
@@ -65,6 +66,10 @@ typedef struct {
     bool disable_both_move;
 
     Chess_Config config;
+
+    ma_engine audio_engine;
+    ma_sound piece_sound;
+    ma_sound capture_sound;
 } AppInterface;
 
 u32
@@ -248,6 +253,22 @@ interface_init()
         printf("Network initialized\n");
     }
 
+    /* The engine needs to be initialized first. */
+    ma_result audio_status = ma_engine_init(NULL, &result->audio_engine);
+    if (audio_status != MA_SUCCESS) {
+        printf("Failed to initialize audio engine.");
+    } else {
+        audio_status = ma_sound_init_from_file(&result->audio_engine, "res/chess_pieces.wav", 0, NULL, NULL, &result->piece_sound);
+        if (audio_status != MA_SUCCESS) {
+            printf("Failed to initialize sound for the pieces.");
+        }
+        audio_status = ma_sound_init_from_file(&result->audio_engine, "res/capture.wav", 0, NULL, NULL, &result->capture_sound);
+        if (audio_status != MA_SUCCESS) {
+            printf("Failed to initialize sound for captures.");
+        }
+    }
+
+
     return result;
 }
 
@@ -347,14 +368,23 @@ interface_input(Chess_Interface interf, Game* game)
 				bool was_selected = (input->selected);
 				input->selected = false;
                 bool my_turn = (game->clock == 0) || (game->im_white && game->white_turn) || (!game->im_white && !game->white_turn);
+                bool captured = false;
 
 				if(input->pressed && xx == input->start_x && yy == input->start_y) {
 					input->selected = !was_selected;
                     if (was_selected)
-                        if((my_turn || !chess->disable_both_move) && game_move(game, get_x(input->selected_x, chess->inverted_board), get_y(input->selected_y, chess->inverted_board), get_x(xx, chess->inverted_board), get_y(yy, chess->inverted_board), piece_from_scroll(input, get_y(yy, chess->inverted_board) == 7), false)) {
+                        if((my_turn || !chess->disable_both_move) && game_move(game, get_x(input->selected_x, chess->inverted_board), get_y(input->selected_y, chess->inverted_board), get_x(xx, chess->inverted_board), get_y(yy, chess->inverted_board), piece_from_scroll(input, get_y(yy, chess->inverted_board) == 7), false, &captured)) {
                             if (game->clock == 0) {
                                 game->clock = os_time_us() / 1000.0;
                                 game->im_white = true;
+                            }
+                            if(captured) {
+                                //ma_sound_seek_to_pcm_frame(&chess->piece_sound, 18000);
+                                ma_sound_seek_to_pcm_frame(&chess->capture_sound, 44000);
+                                ma_sound_start(&chess->capture_sound);
+                            } else {
+                                ma_sound_seek_to_pcm_frame(&chess->piece_sound, 18000);
+                                ma_sound_start(&chess->piece_sound);
                             }
                             interface_send_update(chess, (u8*)game, sizeof(Game));
                         }
@@ -363,10 +393,17 @@ interface_input(Chess_Interface interf, Game* game)
 						input->selected_y = yy;
 					}
 				} else {
-                    if((my_turn || !chess->disable_both_move) && game_move(game, get_x(input->start_x, chess->inverted_board), get_y(input->start_y, chess->inverted_board), get_x(xx, chess->inverted_board), get_y(yy, chess->inverted_board), piece_from_scroll(input, get_y(yy, chess->inverted_board) == 7), false)) {
+                    if((my_turn || !chess->disable_both_move) && game_move(game, get_x(input->start_x, chess->inverted_board), get_y(input->start_y, chess->inverted_board), get_x(xx, chess->inverted_board), get_y(yy, chess->inverted_board), piece_from_scroll(input, get_y(yy, chess->inverted_board) == 7), false, &captured)) {
                         if (game->clock == 0) {
                             game->clock = os_time_us() / 1000.0;
                             game->im_white = true;
+                        }
+                        if(captured) {
+                            ma_sound_seek_to_pcm_frame(&chess->capture_sound, 44000);
+                            ma_sound_start(&chess->capture_sound);
+                        } else {
+                            ma_sound_seek_to_pcm_frame(&chess->piece_sound, 18000);
+                            ma_sound_start(&chess->piece_sound);
                         }
                         interface_send_update(chess, (u8*)game, sizeof(Game));
                     }

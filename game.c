@@ -558,7 +558,7 @@ is_valid_move(Game* game, s32 from_x, s32 from_y, s32 to_x, s32 to_y, Chess_Piec
 }
 
 bool
-game_move(Game* game, s32 from_x, s32 from_y, s32 to_x, s32 to_y, Chess_Piece promotion_choice, bool simulate)
+game_move(Game* game, s32 from_x, s32 from_y, s32 to_x, s32 to_y, Chess_Piece promotion_choice, bool simulate, bool* capt)
 {
     // Copy the state so we can simulate
     memcpy(game->sim_board, game->board, sizeof(game->board));
@@ -682,6 +682,7 @@ game_move(Game* game, s32 from_x, s32 from_y, s32 to_x, s32 to_y, Chess_Piece pr
             game->move_draw_count = 0;
         else
             game->move_draw_count++;
+        if(capt) *capt = captured;
 
         if(game->white_turn)
             game->white_time_ms += game->increment_ms;
@@ -697,7 +698,7 @@ game_move(Game* game, s32 from_x, s32 from_y, s32 to_x, s32 to_y, Chess_Piece pr
         s32 count_moves = generate_possible_moves(game, &moves);
         s32 mv_count = 0;
         for(int i = 0; i < array_length(moves.move); ++i) {
-            if(game_move(game, moves.move[i].from_x, moves.move[i].from_y, moves.move[i].to_x, moves.move[i].to_y, moves.move[i].promotion_piece, true)) {
+            if(game_move(game, moves.move[i].from_x, moves.move[i].from_y, moves.move[i].to_x, moves.move[i].to_y, moves.move[i].promotion_piece, true, 0)) {
                 mv_count++;
             }
         }
@@ -1131,7 +1132,7 @@ generate_all_valid_moves_from_square(Game* game, Gen_Moves* moves, s32 x, s32 y)
 
     s32 mv_count = 0;
     for(int i = 0; i < array_length(moves->move); ++i) {
-        if(game_move(game, moves->move[i].from_x, moves->move[i].from_y, moves->move[i].to_x, moves->move[i].to_y, moves->move[i].promotion_piece, true)) {
+        if(game_move(game, moves->move[i].from_x, moves->move[i].from_y, moves->move[i].to_x, moves->move[i].to_y, moves->move[i].promotion_piece, true, 0)) {
             mv_count++;
         }
     }

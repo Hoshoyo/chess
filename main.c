@@ -13,6 +13,8 @@
 #include <stb_image.h>
 #include "interface.h"
 #include "game.h"
+#define MINIAUDIO_IMPLEMENTATION
+#include "miniaudio.h"
 
 typedef struct {
 	s32    width;
