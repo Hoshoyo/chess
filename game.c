@@ -368,7 +368,7 @@ is_valid_move(Game* game, s32 from_x, s32 from_y, s32 to_x, s32 to_y, Chess_Piec
                 return (to_piece == CHESS_NONE); // Can promote too
             } else if (to_y - from_y == 2 && to_x == from_x) {
                 // Move 2 squares forward
-                return (game->board[to_y - 1][to_x] == CHESS_NONE) && (to_piece == CHESS_NONE);
+                return (game->board[to_y - 1][to_x] == CHESS_NONE) && (to_piece == CHESS_NONE) && (from_y == 1);
             } else if (to_y - from_y == 1 && to_x - from_x == 1 || to_y - from_y == 1 && to_x - from_x == -1) {
                 if (to_y == LAST_RANK) {
                     // Promotion with capture
@@ -385,7 +385,7 @@ is_valid_move(Game* game, s32 from_x, s32 from_y, s32 to_x, s32 to_y, Chess_Piec
                 return (to_piece == CHESS_NONE); // Can promote too
             } else if (from_y - to_y == 2 && to_x == from_x) {
                 // Move 2 squares forward
-                return (game->board[to_y + 1][to_x] == CHESS_NONE) && (to_piece == CHESS_NONE);
+                return (game->board[to_y + 1][to_x] == CHESS_NONE) && (to_piece == CHESS_NONE) && (from_y == 6);
             } else if (from_y - to_y == 1 && to_x - from_x == 1 || from_y - to_y == 1 && to_x - from_x == -1) {
                 if (to_y == FIRST_RANK) {
                     // Promotion with capture

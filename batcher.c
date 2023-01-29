@@ -350,8 +350,6 @@ batch_init(Hobatch_Context* ctx, const char* font_filepath)
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, 6 * sizeof(u32) * BATCH_SIZE, indices, GL_STATIC_DRAW);
     free(indices);
 
-    batch_font_load(font_filepath, &ctx->font);
-
     ctx->enabled = true;
 }
 

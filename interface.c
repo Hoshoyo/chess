@@ -533,9 +533,9 @@ interface_render(Chess_Interface interf, Hobatch_Context* ctx, Game* game)
                 color = gm_vec4_add(color, (vec4) { 0.3f, 0.2f, 0.2f, 0.0f });
 			}
 
-            if(!game->last_move.start && game->last_move.from_x == x && game->last_move.from_y == y)
+            if(!game->last_move.start && game->last_move.from_x == get_x(x, chess->inverted_board) && game->last_move.from_y == get_y(y, chess->inverted_board))
                 color = gm_vec4_add(gm_vec4_subtract(color, (vec4){0.2f, 0.2f, 0.2f, 0.0f}), (vec4){0.2f, 0.2f, 0.1f, 0.0f});
-            if(!game->last_move.start && game->last_move.to_x == x && game->last_move.to_y == y)
+            if(!game->last_move.start && game->last_move.to_x == get_x(x, chess->inverted_board) && game->last_move.to_y == get_y(y, chess->inverted_board))
                 color = gm_vec4_add(gm_vec4_subtract(color, (vec4){0.2f, 0.2f, 0.2f, 0.0f}), (vec4){0.3f, 0.3f, 0.1f, 0.0f});
 
             batch_render_quad_color_solid(ctx, (vec3){w * x, h * y, 0}, w, h, color);
@@ -553,10 +553,10 @@ interface_render(Chess_Interface interf, Hobatch_Context* ctx, Game* game)
     // Render possible move preview
     if (piece_selected != CHESS_NONE || (input->selected)) {
         Gen_Moves moves = {0};
-        s32 count_moves = generate_all_valid_moves_from_square(game, &moves, input->start_x, input->start_y);
+        s32 count_moves = generate_all_valid_moves_from_square(game, &moves, get_x(input->start_x, chess->inverted_board), get_y(input->start_y, chess->inverted_board));
         if(count_moves > 0) {
             for(s32 i = 0; i < count_moves; ++i) {                
-                batch_render_quad_textured(ctx, (vec3){w * moves.move[i].to_x, h * moves.move[i].to_y, 0}, w, h, chess->select_dot);
+                batch_render_quad_textured(ctx, (vec3){w * get_x(moves.move[i].to_x, chess->inverted_board), h * get_y(moves.move[i].to_y, chess->inverted_board), 0}, w, h, chess->select_dot);
             }
         }
         array_free(moves.move);

@@ -137,8 +137,6 @@ int main(int argc, char** argv)
 
     hinp_init(window.handle);
 
-    Hobatch_Context ctx = {0};
-    batch_init(&ctx, "C:\\Windows\\Fonts\\consolas.ttf");
     renderer_init("C:\\Windows\\Fonts\\consolas.ttf");
 	Chess_Interface interf = interface_init();
 	Game game = {0};
@@ -159,12 +157,12 @@ int main(int argc, char** argv)
 		s32 ww = rect.right - rect.left, wh = rect.bottom - rect.top;
         glViewport(0, 0, ww, wh);
 
-        batch_set_window_size(&ctx, ww, wh);
+        batch_set_window_size(renderer_get_batch_ctx(), ww, wh);
 		interface_update_window(interf, ww, wh);
 		interface_input(interf, &game);
-        interface_render(interf, &ctx, &game);
+        interface_render(interf, renderer_get_batch_ctx(), &game);
 
-        batch_flush(&ctx);
+        batch_flush(renderer_get_batch_ctx());
 		SwapBuffers(window.dc);
 
 		hinp_clear();
