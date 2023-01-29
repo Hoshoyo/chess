@@ -72,6 +72,18 @@ typedef struct {
     ma_sound capture_sound;
 } AppInterface;
 
+void
+play_piece_sound(AppInterface* interf, bool capture)
+{
+    if(capture) {
+        ma_sound_seek_to_pcm_frame(&interf->capture_sound, 44000);
+        ma_sound_start(&interf->capture_sound);
+    } else {
+        ma_sound_seek_to_pcm_frame(&interf->piece_sound, 18000);
+        ma_sound_start(&interf->piece_sound);
+    }
+}
+
 u32
 load_image(const char* filename)
 {
@@ -174,7 +186,9 @@ game_process_update(AppInterface* chess, Game* game, Server_Message* msg)
     if (received_game->im_white) {
         game->im_white = false;
     }
+    array_push(((Game_History*)game->history)->game, *game);
 
+    play_piece_sound(chess, false);
 }
 
 void
@@ -378,14 +392,7 @@ interface_input(Chess_Interface interf, Game* game)
                                 game->clock = os_time_us() / 1000.0;
                                 game->im_white = true;
                             }
-                            if(captured) {
-                                //ma_sound_seek_to_pcm_frame(&chess->piece_sound, 18000);
-                                ma_sound_seek_to_pcm_frame(&chess->capture_sound, 44000);
-                                ma_sound_start(&chess->capture_sound);
-                            } else {
-                                ma_sound_seek_to_pcm_frame(&chess->piece_sound, 18000);
-                                ma_sound_start(&chess->piece_sound);
-                            }
+                            play_piece_sound(chess, captured);
                             interface_send_update(chess, (u8*)game, sizeof(Game));
                         }
 					if (input->selected) {
@@ -398,13 +405,7 @@ interface_input(Chess_Interface interf, Game* game)
                             game->clock = os_time_us() / 1000.0;
                             game->im_white = true;
                         }
-                        if(captured) {
-                            ma_sound_seek_to_pcm_frame(&chess->capture_sound, 44000);
-                            ma_sound_start(&chess->capture_sound);
-                        } else {
-                            ma_sound_seek_to_pcm_frame(&chess->piece_sound, 18000);
-                            ma_sound_start(&chess->piece_sound);
-                        }
+                        play_piece_sound(chess, captured);
                         interface_send_update(chess, (u8*)game, sizeof(Game));
                     }
                 }
