@@ -29,6 +29,10 @@ s32 parse_fen(s8* fen, Game* game) {
 
 	memset(game->board, CHESS_NONE, sizeof(game->board));
     game->move_draw_count = 0;
+    game->white_long_castle_valid = false;
+    game->white_short_castle_valid = false;
+    game->black_long_castle_valid = false;
+    game->black_short_castle_valid = false;
 
 	Fen_Format parsing_state = FEN_BOARD;
 
@@ -101,10 +105,10 @@ s32 parse_fen(s8* fen, Game* game) {
 						break;
                     
 					switch (c) {
-						case 'K': game->white_short_castle_valid; break;
-						case 'Q': game->white_long_castle_valid; break;
-						case 'k': game->black_short_castle_valid; break;
-						case 'q': game->black_long_castle_valid; break;
+						case 'K': game->white_short_castle_valid = true; break;
+						case 'Q': game->white_long_castle_valid = true; break;
+						case 'k': game->black_short_castle_valid = true; break;
+						case 'q': game->black_long_castle_valid = true; break;
 						default: return -1;
 					}
 					++fen;
