@@ -745,6 +745,12 @@ game_move(Game* game, s32 from_x, s32 from_y, s32 to_x, s32 to_y, Chess_Piece pr
     return true;
 }
 
+bool
+game_move_apply(Game* game, Chess_Move move, bool simulate, bool* capt) 
+{
+    return game_move(game, move.from_x, move.from_y, move.to_x, move.to_y, move.promotion_piece, simulate, capt);
+}
+
 static void 
 generate_pawn_moves(Game* game, s32 x, s32 y, Gen_Moves* moves) 
 {
@@ -787,7 +793,7 @@ generate_pawn_moves(Game* game, s32 x, s32 y, Gen_Moves* moves)
 
 	// advance twice
 	{
-		mv.promotion_piece = CHESS_NONE;
+    mv.promotion_piece = CHESS_NONE;
 		mv.to_x = x;
 		mv.to_y = y + 2 * move_direction;
 		if(is_valid_move(game, mv.from_x, mv.from_y, mv.to_x, mv.to_y, mv.promotion_piece))

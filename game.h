@@ -69,6 +69,7 @@ typedef struct {
     struct Game_History* history;
 
     bool im_white;
+    bool is_undo;
 } Game;
 
 typedef struct {
@@ -82,5 +83,6 @@ typedef struct {
 
 void game_new(Game* game);
 int  game_move(Game* game, s32 from_x, s32 from_y, s32 to_x, s32 to_y, Chess_Piece promotion_choice, bool simulate, bool* capt);
+bool game_move_apply(Game* game, Chess_Move move, bool simulate, bool* capt) ;
 void game_undo(Game* game);
 s32  generate_all_valid_moves_from_square(Game* game, Gen_Moves* moves, s32 x, s32 y);

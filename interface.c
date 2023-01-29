@@ -65,6 +65,9 @@ typedef struct {
 
     bool disable_both_move;
 
+    bool premove;
+    Chess_Move premove_move;
+
     Chess_Config config;
 
     ma_engine audio_engine;
@@ -186,7 +189,13 @@ game_process_update(AppInterface* chess, Game* game, Server_Message* msg)
     if (received_game->im_white) {
         game->im_white = false;
     }
-    array_push(((Game_History*)game->history)->game, *game);
+    if(received_game->is_undo) {
+        if(array_length(((Game_History*)game->history)->game) > 1)
+            array_length(((Game_History*)game->history)->game)--;
+        game->is_undo = false;
+    } else {
+        array_push(((Game_History*)game->history)->game, *game);
+    }
 
     play_piece_sound(chess, false);
 }
@@ -367,6 +376,8 @@ interface_input(Chess_Interface interf, Game* game)
     AppInterface* chess = (AppInterface*)interf;
 	AppInput* input = &chess->input;
 
+    bool my_turn = (game->clock == 0) || (game->im_white && game->white_turn) || (!game->im_white && !game->white_turn);
+
 	s32 xx = -1, yy = -1;
 	Hinp_Event ev = {0};
 	while (hinp_event_next(&ev)) {
@@ -374,39 +385,63 @@ interface_input(Chess_Interface interf, Game* game)
 			xx = floorf(((r32)ev.mouse.x / (r32)chess->window_height) * 8.0f);
 			yy = floorf(8.0f - (((r32)ev.mouse.y / (r32)chess->window_height) * 8.0f));
 
+            if(chess->premove) {
+                chess->premove = false;
+            }
+
 			if(ev.mouse.action == 1) {
 				input->pressed = true;
 				input->start_x = xx;
 				input->start_y = yy;
 			} else {
 				bool was_selected = (input->selected);
-				input->selected = false;
-                bool my_turn = (game->clock == 0) || (game->im_white && game->white_turn) || (!game->im_white && !game->white_turn);
+				input->selected = false;                
                 bool captured = false;
-
+                
 				if(input->pressed && xx == input->start_x && yy == input->start_y) {
 					input->selected = !was_selected;
-                    if (was_selected)
-                        if((my_turn || !chess->disable_both_move) && game_move(game, get_x(input->selected_x, chess->inverted_board), get_y(input->selected_y, chess->inverted_board), get_x(xx, chess->inverted_board), get_y(yy, chess->inverted_board), piece_from_scroll(input, get_y(yy, chess->inverted_board) == 7), false, &captured)) {
+                    if (was_selected) {
+                        Chess_Move move = {
+                            .promotion_piece = piece_from_scroll(input, get_y(yy, chess->inverted_board) == 7),
+                            .from_x = get_x(input->selected_x, chess->inverted_board),
+                            .from_y = get_y(input->selected_y, chess->inverted_board),
+                            .to_x = get_x(xx, chess->inverted_board),
+                            .to_y = get_y(yy, chess->inverted_board)
+                        };                        
+                        if((my_turn || !chess->disable_both_move) && game_move_apply(game, move, false, &captured)) {
                             if (game->clock == 0) {
                                 game->clock = os_time_us() / 1000.0;
                                 game->im_white = true;
                             }
                             play_piece_sound(chess, captured);
                             interface_send_update(chess, (u8*)game, sizeof(Game));
+                        } else if (!my_turn) {
+                            chess->premove = true;
+                            chess->premove_move = move;
                         }
+                    }
 					if (input->selected) {
 						input->selected_x = xx;
 						input->selected_y = yy;
 					}
 				} else {
-                    if((my_turn || !chess->disable_both_move) && game_move(game, get_x(input->start_x, chess->inverted_board), get_y(input->start_y, chess->inverted_board), get_x(xx, chess->inverted_board), get_y(yy, chess->inverted_board), piece_from_scroll(input, get_y(yy, chess->inverted_board) == 7), false, &captured)) {
+                    Chess_Move move = {
+                        .promotion_piece = piece_from_scroll(input, get_y(yy, chess->inverted_board) == 7),
+                        .from_x = get_x(input->start_x, chess->inverted_board),
+                        .from_y = get_y(input->start_y, chess->inverted_board),
+                        .to_x = get_x(xx, chess->inverted_board),
+                        .to_y = get_y(yy, chess->inverted_board)
+                    }; 
+                    if((my_turn || !chess->disable_both_move) && game_move_apply(game, move, false, &captured)) {
                         if (game->clock == 0) {
                             game->clock = os_time_us() / 1000.0;
                             game->im_white = true;
                         }
                         play_piece_sound(chess, captured);
                         interface_send_update(chess, (u8*)game, sizeof(Game));
+                    } else if(!my_turn) {
+                        chess->premove = true;
+                        chess->premove_move = move;
                     }
                 }
 				input->pressed = false;
@@ -434,12 +469,30 @@ interface_input(Chess_Interface interf, Game* game)
                     case 'D': chess->disable_both_move = !chess->disable_both_move;
                     case VK_DOWN: game->white_time_ms -= (1000.0 * 60); game->black_time_ms -= (1000.0 * 60); break;
                     case VK_UP: game->white_time_ms += (1000.0 * 60); game->black_time_ms += (1000.0 * 60); break;
-                    case VK_LEFT: game_undo(game); interface_send_update(chess, (u8*)game, sizeof(Game)); break;
+                    case VK_LEFT: {
+                        game_undo(game);
+                        game->is_undo = true;
+                        interface_send_update(chess, (u8*)game, sizeof(Game)); 
+                        game->is_undo = false;
+                    }break;
                     default: break;
                 }
             }
         }
 	}
+
+    if(chess->premove && my_turn) {
+        chess->premove = false;
+        bool captured = false;
+        if(game_move(game, chess->premove_move.from_x, chess->premove_move.from_y, chess->premove_move.to_x, chess->premove_move.to_y, chess->premove_move.promotion_piece, false, &captured)) {
+            if (game->clock == 0) {
+                game->clock = os_time_us() / 1000.0;
+                game->im_white = true;
+            }
+            play_piece_sound(chess, captured);
+            interface_send_update(chess, (u8*)game, sizeof(Game));
+        }
+    }
 }
 
 static const char*
@@ -572,9 +625,17 @@ interface_render(Chess_Interface interf, Hobatch_Context* ctx, Game* game)
 			}
 
             if(!game->last_move.start && game->last_move.from_x == get_x(x, chess->inverted_board) && game->last_move.from_y == get_y(y, chess->inverted_board))
-                color = gm_vec4_add(gm_vec4_subtract(color, (vec4){0.2f, 0.2f, 0.2f, 0.0f}), (vec4){0.2f, 0.2f, 0.1f, 0.0f});
+                color = gm_vec4_add(gm_vec4_scalar_product(0.6f, color), (vec4){0.2f, 0.2f, 0.1f, 0.0f});
             if(!game->last_move.start && game->last_move.to_x == get_x(x, chess->inverted_board) && game->last_move.to_y == get_y(y, chess->inverted_board))
-                color = gm_vec4_add(gm_vec4_subtract(color, (vec4){0.2f, 0.2f, 0.2f, 0.0f}), (vec4){0.3f, 0.3f, 0.1f, 0.0f});
+                color = gm_vec4_add(gm_vec4_scalar_product(0.6f, color), (vec4){0.3f, 0.3f, 0.1f, 0.0f});
+
+            if(chess->premove) {
+                if(!chess->premove_move.start && chess->premove_move.from_x == get_x(x, chess->inverted_board) && chess->premove_move.from_y == get_y(y, chess->inverted_board))
+                    color = gm_vec4_add(gm_vec4_scalar_product(0.2f, color), (vec4){0.4f, 0.2f, 0.1f, 0.0f});
+                if(!chess->premove_move.start && chess->premove_move.to_x == get_x(x, chess->inverted_board) && chess->premove_move.to_y == get_y(y, chess->inverted_board))
+                    color = gm_vec4_add(gm_vec4_scalar_product(0.2f, color), (vec4){0.3f, 0.3f, 0.1f, 0.0f});
+            }
+            color.a = 1.0f;
 
             batch_render_quad_color_solid(ctx, (vec3){w * x, h * y, 0}, w, h, color);
 
