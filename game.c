@@ -463,7 +463,7 @@ is_valid_move(Game* game, s32 from_x, s32 from_y, s32 to_x, s32 to_y, Chess_Piec
                 return (is_black(to_piece) || to_piece == CHESS_NONE);
         } break;
         case CHESS_WHITE_KING: {
-            if (abs(from_y - to_y) == 1 || abs(from_x - to_x) == 1) {
+            if (abs(from_y - to_y) == 1 && abs(from_x - to_x) == 1) {
                 // Normal move
                 return (is_black(to_piece) || to_piece == CHESS_NONE);
             } else if (from_x == 4 && to_x == 2) {
@@ -485,7 +485,7 @@ is_valid_move(Game* game, s32 from_x, s32 from_y, s32 to_x, s32 to_y, Chess_Piec
             }
         } break;
         case CHESS_BLACK_KING: {
-            if (abs(from_y - to_y) == 1 || abs(from_x - to_x) == 1) {
+            if (abs(from_y - to_y) == 1 && abs(from_x - to_x) == 1) {
                 // Normal move
                 return (is_white(to_piece) || to_piece == CHESS_NONE);
             } else if (from_x == 4 && to_x == 2) {
